@@ -119,6 +119,11 @@
                 hideLoadingOverlay();
             }
         });
+
+        // Keep Render service awake while any browser tab is open (every 5 minutes)
+        setInterval(() => {
+            fetch('/health', { cache: 'no-store' }).catch(() => {});
+        }, 300000);
     </script>
     {% block scripts %}{% endblock %}
 </body>

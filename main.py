@@ -1,17 +1,17 @@
 """Main FastAPI application entry point."""
-import base64
-import binascii
+import asyncio
 from contextlib import asynccontextmanager
 import logging
-import secrets
+import os
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+import httpx
 import uvicorn
 
 from app.config import settings
@@ -21,9 +21,24 @@ from app.services.processing import recover_stale_jobs
 logger = logging.getLogger(__name__)
 
 
+async def _render_keep_alive_loop():
+    """Periodically ping the public Render URL every 10 minutes so the instance stays warm."""
+    render_url = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+    if not render_url:
+        return
+    health_url = f"{render_url}/health"
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        while True:
+            await asyncio.sleep(600)  # 10 minutes (Render inactivity timeout is 15 minutes)
+            try:
+                await client.get(health_url)
+            except Exception as exc:
+                logger.debug(f"Keep-alive ping to {health_url} skipped: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database tables and recover any interrupted jobs on startup."""
+    """Initialize database tables, recover interrupted jobs, and run Render keep-alive loop."""
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
@@ -32,7 +47,12 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Startup stale job recovery skipped: {e}")
     finally:
         db.close()
-    yield
+
+    keep_alive_task = asyncio.create_task(_render_keep_alive_loop())
+    try:
+        yield
+    finally:
+        keep_alive_task.cancel()
 
 
 app = FastAPI(
@@ -58,41 +78,10 @@ app.add_middleware(
 @app.middleware("http")
 async def security_and_csrf_middleware(request: Request, call_next):
     """
-    Enforce:
-    1. HTTP Basic demo access gate (fails closed in production if credentials missing;
-       enforced whenever DEMO_AUTH_USERNAME and DEMO_AUTH_PASSWORD are configured).
-    2. Same-origin check for state-changing requests (POST, PATCH, DELETE).
+    Enforce same-origin check for state-changing requests (POST, PATCH, DELETE)
+    and set static asset cache headers.
     """
     path = request.url.path
-
-    # Allow health check and static assets without Basic Auth gate
-    if path != "/health" and not path.startswith("/static"):
-        if settings.app_env == "production" and not settings.is_demo_auth_configured:
-            return JSONResponse(
-                {"detail": "Demo authentication credentials are required in production mode."},
-                status_code=503
-            )
-
-        if settings.is_demo_auth_configured:
-            auth_header = request.headers.get("Authorization") or ""
-            authorized = False
-            if auth_header.lower().startswith("basic "):
-                encoded = auth_header[6:].strip()
-                try:
-                    decoded = base64.b64decode(encoded).decode("utf-8")
-                    username, _, password = decoded.partition(":")
-                    user_ok = secrets.compare_digest(username, settings.effective_demo_username)
-                    pass_ok = secrets.compare_digest(password, settings.effective_demo_password)
-                    authorized = user_ok and pass_ok
-                except (binascii.Error, UnicodeDecodeError):
-                    authorized = False
-
-            if not authorized:
-                return Response(
-                    content="Unauthorized: Demo credentials required",
-                    status_code=401,
-                    headers={"WWW-Authenticate": 'Basic realm="Clinical Notes PoC"'}
-                )
 
     # Same-origin check for state-changing mutations
     if request.method in {"POST", "PATCH", "DELETE"}:
