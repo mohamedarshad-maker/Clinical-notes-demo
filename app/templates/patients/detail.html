@@ -1,0 +1,1659 @@
+{% extends "base.html" %}
+
+{% block title %}{{ patient.display_name }} - Clinical Notes{% endblock %}
+
+{% block content %}
+<style>
+    .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+    }
+    @media (max-width: 900px) {
+        .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    /* Quick summary stats bar */
+    .stats-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+    .stat-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+    .stat-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+    .stat-value {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--navy);
+    }
+
+    /* Clean Tables - NEVER apply display:flex to td */
+    .table-clean {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+    .table-clean th,
+    .table-clean td {
+        padding: 0.75rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+    }
+    .table-clean tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .table-clean tbody tr:hover {
+        background-color: #f8fafc;
+    }
+    .table-clean th {
+        border-bottom: 1px solid #cbd5e1;
+        color: var(--text-secondary);
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background-color: #f8fafc;
+    }
+
+    /* Action button wrapper inside td */
+    .cell-actions {
+        display: flex;
+        gap: 0.35rem;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+
+    /* Category Cards */
+    .category-box {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        background: #fff;
+        overflow: hidden;
+    }
+    .category-header {
+        background: #f8fafc;
+        padding: 0.65rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+    }
+    .category-title {
+        font-weight: 600;
+        color: var(--navy);
+        font-size: 0.92rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .category-body {
+        padding: 0;
+    }
+
+    /* Grouped Entry Styling */
+    .entry-headline {
+        font-weight: 600;
+        color: var(--navy);
+        font-size: 0.92rem;
+        line-height: 1.4;
+    }
+    .entry-primary-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        text-transform: capitalize;
+        margin-right: 0.35rem;
+    }
+    .entry-subfields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 1rem;
+        margin-top: 0.35rem;
+        font-size: 0.83rem;
+        color: #334155;
+    }
+    .subfield-item {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.3rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        padding: 0.15rem 0.5rem;
+        cursor: pointer;
+        transition: border-color 0.15s, background-color 0.15s;
+    }
+    .subfield-item:hover {
+        border-color: #94a3b8;
+        background: #f1f5f9;
+    }
+    .subfield-key {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.76rem;
+        text-transform: capitalize;
+    }
+    .subfield-val {
+        color: var(--text);
+        font-weight: 500;
+    }
+
+    /* Evidence Quote */
+    .evidence-quote {
+        font-size: 0.8rem;
+        color: #475569;
+        background: #f8fafc;
+        border-left: 3px solid #94a3b8;
+        padding: 0.3rem 0.6rem;
+        margin-top: 0.45rem;
+        border-radius: 0 4px 4px 0;
+        cursor: pointer;
+        transition: all 0.15s;
+        line-height: 1.4;
+    }
+    .evidence-quote:hover {
+        border-left-color: var(--primary);
+        background: #f0f9ff;
+        color: #0f172a;
+    }
+    .evidence-loc {
+        font-weight: 600;
+        color: var(--primary);
+        font-size: 0.75rem;
+        margin-left: 0.35rem;
+        white-space: nowrap;
+    }
+
+    /* Empty categories compact grid */
+    .empty-cats-bar {
+        margin-top: 1rem;
+        padding: 0.85rem 1rem;
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+    }
+    .empty-cats-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+    .empty-cats-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+    .empty-cat-pill {
+        font-size: 0.78rem;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.2rem 0.6rem;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .empty-cat-pill:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: #f0f9ff;
+    }
+
+    /* Modals */
+    .modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+    .modal-content {
+        background: white;
+        max-width: 820px;
+        width: 100%;
+        max-height: 85vh;
+        overflow-y: auto;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+    }
+
+    .stage-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
+    }
+    .fact-highlight {
+        outline: 2px solid var(--primary);
+        background-color: #e0f2fe !important;
+        transition: background-color 0.4s;
+    }
+
+    /* Pipeline bar */
+    .pipeline-bar {
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    /* Upload split box */
+    .upload-box {
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.9rem 1rem;
+    }
+    .upload-box h4 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+        color: var(--navy);
+    }
+</style>
+
+<!-- Header Bar -->
+<div class="page-header">
+    <div>
+        <div style="margin-bottom: 0.2rem;">
+            <a href="/patients" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 500;">&larr; Back to Patients</a>
+        </div>
+        <h2>{{ patient.display_name }}</h2>
+        <span style="color: var(--text-secondary); font-size: 0.8rem;">Patient ID: <code>{{ patient.id }}</code></span>
+    </div>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <button type="button" class="btn-secondary" onclick="openAddFactModal(11)">+ Add Clinical Fact</button>
+        <button type="button" class="btn-secondary" onclick="downloadFactsCsv()">Export Facts CSV</button>
+        <a href="/export/summary/{{ patient.id }}" class="btn-secondary">Export Summary CSV</a>
+        <button type="button" class="btn-secondary" onclick="loadPatientWorkspace()">Refresh</button>
+    </div>
+</div>
+
+<!-- Quick Workspace Stats -->
+<div class="stats-bar">
+    <div class="stat-card">
+        <span class="stat-label">Source Documents</span>
+        <span class="stat-value" id="stat-docs">-</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Pipeline Status</span>
+        <span class="stat-value" id="stat-pipeline" style="font-size: 0.95rem;">-</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Documented Categories</span>
+        <span class="stat-value" id="stat-categories">-</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Clinical Entries Reviewed</span>
+        <span class="stat-value" id="stat-reviewed">-</span>
+    </div>
+</div>
+
+<!-- 1. Source Clinical Documents & Extraction Pipeline -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <h3 style="margin-bottom: 0;">1. Clinical Documents &amp; Analysis Pipeline</h3>
+        <button type="button" class="btn-sm btn-secondary" onclick="toggleUploadPanel()" id="toggle-upload-btn">Add / Upload Notes</button>
+    </div>
+
+    <div id="upload-panel" class="grid-2" style="margin-bottom: 1rem;">
+        <div class="upload-box">
+            <h4>Upload Files (PDF, PNG, JPG, TXT)</h4>
+            <form id="upload-form" enctype="multipart/form-data" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <input type="file" id="files" multiple accept=".pdf,.png,.jpg,.jpeg,.txt" style="flex: 1; min-width: 180px; font-size: 0.82rem;">
+                <button type="button" class="btn-sm" onclick="uploadFiles()">Upload Files</button>
+            </form>
+        </div>
+        <div class="upload-box">
+            <h4>Or Paste Clinical Note</h4>
+            <form id="paste-form">
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.4rem;">
+                    <input type="text" id="paste-title" placeholder="Note title (e.g., Admission Note)" style="padding: 0.35rem 0.55rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 5px; flex: 1;">
+                    <button type="button" class="btn-sm" onclick="pasteText()">Save Note</button>
+                </div>
+                <textarea id="paste-text" rows="2" placeholder="Paste clinical note text here..." style="width: 100%; padding: 0.4rem 0.55rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 5px;"></textarea>
+            </form>
+        </div>
+    </div>
+    <div id="upload-status" style="margin-bottom: 0.5rem; font-size: 0.85rem;"></div>
+
+    <div id="documents-list">
+        <p style="color: var(--text-secondary);">Loading documents...</p>
+    </div>
+
+    <!-- Pipeline Execution Bar -->
+    <div class="pipeline-bar">
+        <div id="analysis-status" style="flex: 1; min-width: 240px;">
+            <span style="color: var(--text-secondary); font-size: 0.85rem;">Ready to run clinical extraction.</span>
+        </div>
+        <div style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
+            <label style="font-size: 0.82rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                <input type="checkbox" id="allow-partial-readable">
+                Allow unreadable pages
+            </label>
+            <button type="button" id="retry-job-btn" class="btn-sm btn-warning" style="display: none;" onclick="retryFailedStages()">Retry Failed Stages</button>
+            <button type="button" onclick="startAnalysis()">Run Full Analysis</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Grounded Patient Summary -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem;">
+        <h3 style="margin-bottom: 0;">2. Grounded Patient Summary</h3>
+        <button type="button" class="btn-sm btn-secondary" onclick="regenerateSummary()">Regenerate Summary</button>
+    </div>
+    <div id="summary-container">
+        <p style="color: var(--text-secondary); font-size: 0.88rem;">No patient summary generated yet. Run analysis to generate a grounded summary.</p>
+    </div>
+</div>
+
+<!-- 3. Diagnosis & WHO ICD-11 MMS Coding Review -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+        <div>
+            <h3 style="margin-bottom: 0.1rem;">3. Diagnoses &amp; WHO ICD-11 MMS Coding</h3>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Active patient diagnoses (Category 11) require human confirmation before export</span>
+        </div>
+        <button type="button" id="accept-all-icd-btn" class="btn-sm btn-success" style="display: none;" onclick="acceptAllIcd()">Accept All</button>
+    </div>
+    <div id="icd-review-container">
+        <p style="color: var(--text-secondary); font-size: 0.88rem;">No diagnosis facts available yet.</p>
+    </div>
+</div>
+
+<!-- 4. Structured Clinical Categories (19 Categories) -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+        <div>
+            <h3 style="margin-bottom: 0.15rem;">4. Extracted Clinical Categories</h3>
+            <p style="font-size: 0.82rem; color: var(--text-secondary);">
+                Related subfields are grouped into single clinical entries. Click any quote to inspect its source page &amp; block, or click any subfield chip to edit it.
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" id="accept-all-facts-btn" class="btn-sm btn-success" style="display: none;" onclick="acceptAllFacts()">Accept All</button>
+            <input type="text" id="fact-filter-input" placeholder="Search clinical entries..." oninput="renderCategories()" style="padding: 0.38rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; width: 220px;">
+            <label style="font-size: 0.82rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                <input type="checkbox" id="show-empty-categories" onchange="renderCategories()">
+                Show Empty Categories
+            </label>
+        </div>
+    </div>
+    <div id="categories-container">
+        <p style="color: var(--text-secondary);">Loading clinical categories...</p>
+    </div>
+</div>
+
+<!-- 5. Export Options -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h3 style="margin-bottom: 0.35rem;">5. CSV Export Settings</h3>
+            <div style="display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: 0.84rem; color: var(--text-secondary);">
+                <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="export-unaccepted-icd">
+                    Include unaccepted ICD-11 candidates
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="export-not-documented" checked>
+                    Include "Not Documented" category rows
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="export-rejected">
+                    Include rejected facts
+                </label>
+            </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" onclick="downloadFactsCsv()">Export Structured Facts CSV (25 Columns)</button>
+            <a href="/export/summary/{{ patient.id }}" class="btn-secondary">Export Patient Summary CSV</a>
+        </div>
+    </div>
+</div>
+
+<!-- Document Pages / Evidence Inspector Modal -->
+<div id="doc-modal" class="modal-backdrop" onclick="if(event.target===this) closeDocModal()">
+    <div class="modal-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 id="doc-modal-title" style="margin: 0; color: var(--navy);">Document Pages &amp; Extracted Blocks</h3>
+            <button type="button" class="btn-sm btn-secondary" onclick="closeDocModal()">Close</button>
+        </div>
+        <div id="doc-modal-body"></div>
+    </div>
+</div>
+
+<!-- Add / Edit Fact Modal -->
+<div id="fact-modal" class="modal-backdrop" onclick="if(event.target===this) closeFactModal()">
+    <div class="modal-content" style="max-width: 560px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 id="fact-modal-title" style="margin: 0; color: var(--navy);">Clinical Fact</h3>
+            <button type="button" class="btn-sm btn-secondary" onclick="closeFactModal()">Close</button>
+        </div>
+        <form id="fact-form" onsubmit="submitFactModal(event)">
+            <input type="hidden" id="modal-fact-id">
+
+            <!-- When editing an entry with multiple subfields, allow switching which subfield to edit -->
+            <div class="form-group" id="modal-subfield-switcher-group" style="display: none; background: #f8fafc; padding: 0.65rem 0.75rem; border-radius: 6px; border: 1px solid var(--border);">
+                <label style="margin-bottom: 0.25rem; color: var(--text-secondary);">Select Subfield in this Entry to Edit</label>
+                <select id="modal-subfield-switcher" onchange="switchModalSubfield(this.value)"></select>
+            </div>
+
+            <div class="form-group" id="modal-category-group">
+                <label>Category</label>
+                <select id="modal-category-number"></select>
+            </div>
+            <div class="form-group" id="modal-field-group">
+                <label>Field Name</label>
+                <input type="text" id="modal-field-name" placeholder="e.g., diagnosis, medication_name, bp" required>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Value</label>
+                    <input type="text" id="modal-value" required>
+                </div>
+                <div class="form-group">
+                    <label>Unit (optional)</label>
+                    <input type="text" id="modal-unit" placeholder="e.g., mg, mmHg, %">
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Assertion</label>
+                    <select id="modal-assertion">
+                        <option value="present">present</option>
+                        <option value="negated">negated</option>
+                        <option value="uncertain">uncertain</option>
+                        <option value="unknown">unknown</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Temporality</label>
+                    <select id="modal-temporality">
+                        <option value="current">current</option>
+                        <option value="historical">historical</option>
+                        <option value="planned">planned</option>
+                        <option value="resolved">resolved</option>
+                        <option value="unknown">unknown</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Experiencer</label>
+                    <select id="modal-experiencer">
+                        <option value="patient">patient</option>
+                        <option value="family_member">family_member</option>
+                        <option value="other">other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Event Time (optional)</label>
+                    <input type="text" id="modal-event-time" placeholder="YYYY-MM-DD or expression">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Review Status</label>
+                <select id="modal-review-status">
+                    <option value="corrected">corrected</option>
+                    <option value="confirmed">confirmed</option>
+                    <option value="rejected">rejected</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Reviewer Note / Reason</label>
+                <input type="text" id="modal-reviewer-note" placeholder="Reason for manual addition or edit">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                <button type="button" class="btn-secondary" onclick="closeFactModal()">Cancel</button>
+                <button type="submit">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const patientId = '{{ patient.id }}';
+let profileData = null;
+let pollTimer = null;
+let currentModalEntryFacts = [];
+let factLookupById = {};
+
+// Priority field names when choosing the headline field of a grouped clinical entry
+const PRIMARY_FIELD_PRIORITY = [
+    'documented_name', 'full_name', 'patient_name', 'diagnosis', 'test_name',
+    'medication_name', 'measurement_name', 'instruction', 'procedure',
+    'problem', 'symptom', 'substance', 'allergen', 'vital_type', 'finding',
+    'vaccine', 'device', 'condition', 'complaint', 'reason', 'goal',
+    'service', 'specialty', 'provider', 'facility', 'name', 'title', 'topic'
+];
+
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatFieldName(fieldName) {
+    if (!fieldName) return '';
+    return String(fieldName).replace(/_/g, ' ');
+}
+
+function toggleUploadPanel() {
+    const panel = document.getElementById('upload-panel');
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? 'grid' : 'none';
+}
+
+async function loadPatientWorkspace() {
+    try {
+        const response = await fetch(`/api/patients/${patientId}/profile`, {
+            credentials: 'same-origin'
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} (${response.statusText})`);
+        }
+        profileData = await response.json();
+
+        // Build fast lookup map of all facts by ID
+        factLookupById = {};
+        for (const cat of (profileData.categories || [])) {
+            for (const f of (cat.facts || [])) {
+                factLookupById[f.id] = f;
+            }
+        }
+
+        updateStatsBar();
+        renderDocuments();
+        renderJobStatus(profileData.job);
+        renderSummary();
+        renderIcdReview();
+        renderCategories();
+        populateCategoryDropdown();
+    } catch (error) {
+        console.error('Failed to load workspace:', error);
+        const errMsg = `<p class="error">Failed to load patient workspace (${escapeHtml(error.message)}). Please refresh the page.</p>`;
+        const docEl = document.getElementById('documents-list');
+        const catEl = document.getElementById('categories-container');
+        if (docEl) docEl.innerHTML = errMsg;
+        if (catEl) catEl.innerHTML = errMsg;
+    }
+}
+
+function updateStatsBar() {
+    const docs = (profileData && profileData.documents) || [];
+    const cats = (profileData && profileData.categories) || [];
+    const job = (profileData && profileData.job) || {};
+
+    document.getElementById('stat-docs').textContent = `${docs.length} file(s)`;
+
+    const jobStatus = job.status && job.status !== 'no_jobs' ? job.status.replace(/_/g, ' ') : 'Not run';
+    document.getElementById('stat-pipeline').textContent = jobStatus.charAt(0).toUpperCase() + jobStatus.slice(1);
+
+    const docCats = cats.filter(c => (c.facts || []).length > 0).length;
+    document.getElementById('stat-categories').textContent = `${docCats} / ${cats.length}`;
+
+    // Count grouped clinical entries & reviewed entries
+    let totalEntries = 0;
+    let reviewedEntries = 0;
+    for (const c of cats) {
+        const groups = groupFactsByEntry(c.facts || []);
+        totalEntries += groups.length;
+        for (const g of groups) {
+            if (g.every(f => f.review_status && f.review_status !== 'unreviewed')) {
+                reviewedEntries += 1;
+            }
+        }
+    }
+    document.getElementById('stat-reviewed').textContent = `${reviewedEntries} / ${totalEntries}`;
+
+    // Collapse upload panel automatically once documents exist to keep view clean
+    const uploadPanel = document.getElementById('upload-panel');
+    if (uploadPanel && docs.length > 0 && !uploadPanel.dataset.initialized) {
+        uploadPanel.style.display = 'none';
+        uploadPanel.dataset.initialized = 'true';
+    }
+}
+
+function renderDocuments() {
+    const container = document.getElementById('documents-list');
+    const docs = (profileData && profileData.documents) || [];
+    if (docs.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.85rem;">No documents uploaded yet. Upload a file or paste a clinical note above.</p>';
+        return;
+    }
+
+    let html = `<table class="table-clean">
+        <thead>
+            <tr>
+                <th>Document</th>
+                <th>Type</th>
+                <th>Parsing</th>
+                <th>Readability</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    for (const doc of docs) {
+        const statusClass = doc.parsing_status === 'completed' ? 'badge-success' :
+                            doc.parsing_status === 'failed' ? 'badge-danger' : 'badge-warning';
+        const unreadableCount = Array.isArray(doc.unreadable_pages) ? doc.unreadable_pages.length : 0;
+        const readableCount = doc.readable_page_count !== undefined ? doc.readable_page_count : (doc.page_count - unreadableCount);
+        const readBadge = unreadableCount > 0
+            ? `<span class="badge badge-warning">${readableCount}/${doc.page_count} pages readable (${unreadableCount} unreadable)</span>`
+            : `<span class="badge badge-success">${readableCount}/${doc.page_count} page(s) readable</span>`;
+
+        let warningsHtml = '';
+        if (doc.warnings && doc.warnings.length > 0) {
+            warningsHtml = `<div style="font-size: 0.76rem; color: #b45309; margin-top: 0.2rem;">${doc.warnings.map(escapeHtml).join(' | ')}</div>`;
+        }
+
+        html += `<tr>
+            <td>
+                <strong style="color: var(--navy);">${escapeHtml(doc.original_filename)}</strong>
+                ${warningsHtml}
+            </td>
+            <td><span class="badge badge-muted">${escapeHtml(doc.content_type)}</span></td>
+            <td><span class="badge ${statusClass}">${escapeHtml(doc.parsing_status)}</span></td>
+            <td>${readBadge}</td>
+            <td>
+                <div class="cell-actions">
+                    <button type="button" class="btn-sm btn-secondary" onclick="inspectDocument('${doc.id}', '${escapeHtml(doc.original_filename)}')">Inspect Pages</button>
+                    <a href="/documents/${doc.id}/download" target="_blank" class="btn-sm btn-secondary">Raw</a>
+                    <button type="button" class="btn-sm btn-warning" onclick="reparseDocument('${doc.id}')">Force OCR</button>
+                    <button type="button" class="btn-sm btn-danger" onclick="deleteDocument('${doc.id}')">Delete</button>
+                </div>
+            </td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderJobStatus(job) {
+    const statusDiv = document.getElementById('analysis-status');
+    const retryBtn = document.getElementById('retry-job-btn');
+
+    if (!job || job.status === 'no_jobs') {
+        statusDiv.innerHTML = '<span style="color: var(--text-secondary); font-size: 0.85rem;">No analysis job has been run yet.</span>';
+        retryBtn.style.display = 'none';
+        return;
+    }
+
+    const statusBadgeClass = job.status === 'completed' ? 'badge-success' :
+                             job.status === 'failed' || job.status === 'interrupted' ? 'badge-danger' :
+                             job.status === 'completed_with_warnings' ? 'badge-warning' : 'badge-info';
+
+    let stagesHtml = '';
+    if (job.stages) {
+        stagesHtml = '<div class="stage-pills">';
+        for (const [stage, st] of Object.entries(job.stages)) {
+            const stClass = st === 'completed' ? 'badge-success' :
+                            (st === 'failed' || st === 'unreadable') ? 'badge-danger' :
+                            st === 'running' ? 'badge-info' : 'badge-muted';
+            stagesHtml += `<span class="badge ${stClass}">${escapeHtml(stage)}: ${escapeHtml(st)}</span>`;
+        }
+        stagesHtml += '</div>';
+    }
+
+    const hasFailedStage = ['failed', 'interrupted', 'completed_with_warnings'].includes(job.status) ||
+        (job.stages && Object.values(job.stages).some(s => s === 'failed'));
+    retryBtn.style.display = hasFailedStage ? 'inline-flex' : 'none';
+
+    let errHtml = '';
+    if (job.error_message) {
+        errHtml = `<div class="error" style="margin-top: 0.35rem; font-size: 0.82rem;">${escapeHtml(job.error_message)}</div>`;
+    }
+
+    statusDiv.innerHTML = `
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);">Pipeline:</span>
+                <span class="badge ${statusBadgeClass}">${escapeHtml(job.status)}</span>
+            </div>
+            ${stagesHtml}
+            ${errHtml}
+        </div>
+    `;
+
+    if (['pending', 'parsing', 'extracting', 'summarizing', 'icd_lookup'].includes(job.status)) {
+        if (!pollTimer) {
+            pollTimer = setTimeout(pollStatus, 2000);
+        }
+    } else if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+    }
+}
+
+function renderSummary() {
+    const container = document.getElementById('summary-container');
+    const summary = profileData && profileData.summary;
+
+    if (!summary) {
+        container.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.88rem;">No patient summary generated yet. Run analysis or click Regenerate Summary.</p>';
+        return;
+    }
+
+    const sentences = summary.sentences || [];
+    if (sentences.length > 0) {
+        let html = '<ul style="padding-left: 1.2rem; font-size: 0.9rem; line-height: 1.6;">';
+        for (const item of sentences) {
+            const text = item.text || item.statement || '';
+            const cites = (item.fact_ids || []).map((fid, idx) =>
+                `<a href="#fact-row-${escapeHtml(fid)}" onclick="highlightFact('${escapeHtml(fid)}'); return false;" class="badge badge-info" style="font-size: 0.7rem; margin-left: 0.25rem; text-decoration: none; padding: 0.05rem 0.45rem;">Source ${idx + 1}</a>`
+            ).join('');
+            html += `<li style="margin-bottom: 0.4rem;">${escapeHtml(text)} ${cites}</li>`;
+        }
+        html += '</ul>';
+        container.innerHTML = html;
+    } else {
+        container.innerHTML = `<p style="white-space: pre-wrap; font-size: 0.9rem;">${escapeHtml(summary.summary_text || 'No summary text.')}</p>`;
+    }
+}
+
+function highlightFact(factId) {
+    const row = document.getElementById(`fact-row-${factId}`) || document.querySelector(`[data-fact-ids*="${factId}"]`);
+    if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.add('fact-highlight');
+        setTimeout(() => row.classList.remove('fact-highlight'), 2500);
+    }
+}
+
+function renderIcdReview() {
+    const container = document.getElementById('icd-review-container');
+    const acceptAllBtn = document.getElementById('accept-all-icd-btn');
+    const mappings = (profileData && profileData.icd_mappings) || [];
+
+    if (mappings.length === 0) {
+        if (acceptAllBtn) acceptAllBtn.style.display = 'none';
+        container.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.88rem;">No diagnosis facts extracted yet.</p>';
+        return;
+    }
+
+    const unacceptedEligibleCount = mappings.filter(item => {
+        if (!item.is_eligible_for_icd) return false;
+        const candidates = item.candidates || [];
+        if (candidates.length === 0) return false;
+        const dec = item.decision;
+        return !dec || dec.needs_review || (dec.mapping_status !== 'accepted' && dec.mapping_status !== 'rejected');
+    }).length;
+
+    if (acceptAllBtn) {
+        if (unacceptedEligibleCount > 0) {
+            acceptAllBtn.style.display = 'inline-flex';
+            acceptAllBtn.textContent = `Accept All (${unacceptedEligibleCount})`;
+        } else {
+            acceptAllBtn.style.display = 'none';
+        }
+    }
+
+    let html = `<table class="table-clean">
+        <thead>
+            <tr>
+                <th>Diagnosis</th>
+                <th>Context</th>
+                <th>Selected ICD-11 Code</th>
+                <th>Status</th>
+                <th>Candidate Selection &amp; WHO Search</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    for (const item of mappings) {
+        const eligible = item.is_eligible_for_icd;
+        const dec = item.decision;
+        const candidates = item.candidates || [];
+
+        const isAccepted = Boolean(dec && dec.mapping_status === 'accepted' && !dec.needs_review);
+        const isRejected = Boolean(dec && dec.mapping_status === 'rejected' && !dec.needs_review);
+
+        let statusBadge = '<span class="badge badge-muted">Not Coded</span>';
+        if (!eligible) {
+            statusBadge = `<span class="badge badge-muted">${escapeHtml(item.ineligible_reason || 'Excluded')}</span>`;
+        } else if (dec) {
+            if (dec.needs_review) {
+                statusBadge = '<span class="badge badge-warning">Needs Re-Review</span>';
+            } else if (dec.mapping_status === 'accepted') {
+                statusBadge = '<span class="badge badge-success">Accepted</span>';
+            } else if (dec.mapping_status === 'rejected') {
+                statusBadge = '<span class="badge badge-danger">Rejected</span>';
+            } else if (dec.mapping_status === 'lookup_failed') {
+                statusBadge = '<span class="badge badge-warning">Lookup Failed</span>';
+            } else {
+                statusBadge = `<span class="badge badge-info">${escapeHtml(dec.mapping_status)}</span>`;
+            }
+        }
+
+        let currentCodeHtml = '<span style="color: var(--text-secondary); font-size: 0.82rem;">None selected</span>';
+        if (dec && dec.selected_code) {
+            currentCodeHtml = `<div><strong style="color: var(--navy);"><code>${escapeHtml(dec.selected_code)}</code></strong> &mdash; ${escapeHtml(dec.selected_title || '')}</div>
+                <div style="font-size: 0.74rem; color: var(--text-secondary);">ICD-11 MMS (${escapeHtml(dec.icd_release || '2026-01')})</div>`;
+        }
+
+        let candidateOptions = '';
+        for (const cand of candidates) {
+            const isSelected = dec && dec.candidate_id === cand.id ? 'selected' : '';
+            candidateOptions += `<option value="${escapeHtml(cand.id)}" ${isSelected}>
+                ${escapeHtml(cand.mms_code)} - ${escapeHtml(cand.mms_title)}
+            </option>`;
+        }
+
+        html += `<tr>
+            <td><strong style="color: var(--navy);">${escapeHtml(item.diagnosis)}</strong></td>
+            <td>${renderContextBadges(item)}</td>
+            <td>${currentCodeHtml}</td>
+            <td>${statusBadge}</td>
+            <td>
+                ${eligible ? `
+                    <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.35rem;">
+                        <select id="icd-select-${item.fact_id}" onchange="const btn=document.getElementById('icd-accept-btn-${item.fact_id}'); if(btn) btn.style.display='inline-flex';" style="padding: 0.28rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.8rem; max-width: 260px;">
+                            ${candidateOptions || '<option value="">-- No candidates --</option>'}
+                        </select>
+                        <button type="button" id="icd-accept-btn-${item.fact_id}" class="btn-sm btn-success" style="${isAccepted ? 'display: none;' : ''}" onclick="submitIcdDecision('${item.fact_id}', 'accepted')">Accept</button>
+                        ${!isRejected ? `<button type="button" class="btn-sm btn-danger" onclick="submitIcdDecision('${item.fact_id}', 'rejected')">Reject</button>` : ''}
+                    </div>
+                    <div style="display: flex; gap: 0.35rem; align-items: center;">
+                        <input type="text" id="icd-query-${item.fact_id}" value="${escapeHtml((dec && dec.refined_query) || item.diagnosis)}" placeholder="Refine WHO search..." style="padding: 0.25rem 0.5rem; font-size: 0.78rem; border: 1px solid #cbd5e1; border-radius: 5px; width: 180px;">
+                        <button type="button" class="btn-sm btn-secondary" onclick="lookupIcd('${item.fact_id}')">Search ICD-11</button>
+                    </div>
+                ` : '<span style="font-size: 0.8rem; color: var(--text-secondary);">Non-active or non-patient diagnosis excluded.</span>'}
+            </td>
+        </tr>`;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderContextBadges(item) {
+    const assertion = item.assertion || 'present';
+    const temporality = item.temporality || 'current';
+    const experiencer = item.experiencer || 'patient';
+
+    const badges = [];
+    if (assertion !== 'present') {
+        const cls = assertion === 'negated' ? 'badge-danger' : 'badge-warning';
+        badges.push(`<span class="badge ${cls}">${escapeHtml(assertion)}</span>`);
+    }
+    if (temporality !== 'current') {
+        badges.push(`<span class="badge badge-info">${escapeHtml(temporality)}</span>`);
+    }
+    if (experiencer !== 'patient') {
+        badges.push(`<span class="badge badge-warning">${escapeHtml(experiencer)}</span>`);
+    }
+
+    if (badges.length === 0) {
+        return `<span style="font-size: 0.78rem; color: var(--text-secondary);">Active &middot; Patient</span>`;
+    }
+    return `<div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">${badges.join('')}</div>`;
+}
+
+function groupFactsByEntry(facts) {
+    const map = new Map();
+    for (const f of facts) {
+        const key = f.entry_id || f.id;
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+        map.get(key).push(f);
+    }
+    return Array.from(map.values());
+}
+
+function pickPrimaryFact(entryFacts, categoryPrimaryFields) {
+    if (!entryFacts || entryFacts.length === 0) return null;
+    if (entryFacts.length === 1) return entryFacts[0];
+
+    // 1. Check category-specific primary fields first
+    if (Array.isArray(categoryPrimaryFields)) {
+        for (const pf of categoryPrimaryFields) {
+            const match = entryFacts.find(f => f.field_name === pf);
+            if (match) return match;
+        }
+    }
+    // 2. Check global priority list
+    for (const pf of PRIMARY_FIELD_PRIORITY) {
+        const match = entryFacts.find(f => f.field_name === pf);
+        if (match) return match;
+    }
+    return entryFacts[0];
+}
+
+function renderCategories() {
+    const container = document.getElementById('categories-container');
+    const acceptAllFactsBtn = document.getElementById('accept-all-facts-btn');
+    const categories = (profileData && profileData.categories) || [];
+    const filterText = (document.getElementById('fact-filter-input').value || '').toLowerCase().trim();
+    const showEmpty = document.getElementById('show-empty-categories').checked;
+
+    // Count unreviewed entries across all categories for the global Accept All button
+    let totalUnreviewedEntries = 0;
+    for (const cat of categories) {
+        const groups = groupFactsByEntry(cat.facts || []);
+        for (const grp of groups) {
+            const isReviewed = grp.every(f => f.review_status === 'confirmed' || f.review_status === 'rejected') || grp.some(f => f.review_status === 'corrected');
+            if (!isReviewed) totalUnreviewedEntries++;
+        }
+    }
+
+    if (acceptAllFactsBtn) {
+        if (totalUnreviewedEntries > 0) {
+            acceptAllFactsBtn.style.display = 'inline-flex';
+            acceptAllFactsBtn.textContent = `Accept All (${totalUnreviewedEntries})`;
+        } else {
+            acceptAllFactsBtn.style.display = 'none';
+        }
+    }
+
+    let html = '';
+    const emptyCategories = [];
+
+    for (const cat of categories) {
+        const catTitle = cat.display_name || cat.key || '';
+        const allFacts = cat.facts || [];
+        const entryGroups = groupFactsByEntry(allFacts).filter(group => {
+            if (!filterText) return true;
+            if (catTitle.toLowerCase().includes(filterText)) return true;
+            return group.some(f => {
+                const evMatch = Array.isArray(f.evidence) && f.evidence.some(ev => (ev.quote || '').toLowerCase().includes(filterText));
+                return (
+                    (f.field_name || '').toLowerCase().includes(filterText) ||
+                    (f.value || '').toLowerCase().includes(filterText) ||
+                    evMatch
+                );
+            });
+        });
+
+        const catStatus = cat.status || 'not_analyzed';
+        const isHighlightedCat = catStatus === 'unreadable' || catStatus === 'extraction_failed';
+
+        if (entryGroups.length === 0 && !isHighlightedCat) {
+            if (!filterText || catTitle.toLowerCase().includes(filterText)) {
+                emptyCategories.push(cat);
+            }
+            if (!showEmpty) {
+                continue;
+            }
+        }
+
+        const availClass = catStatus === 'documented' ? 'badge-success' :
+                           catStatus === 'not_documented' ? 'badge-muted' :
+                           isHighlightedCat ? 'badge-danger' : 'badge-warning';
+
+        const catUnreviewedFactIds = [];
+        let catUnreviewedGroupsCount = 0;
+        for (const grp of entryGroups) {
+            const isReviewed = grp.every(f => f.review_status === 'confirmed' || f.review_status === 'rejected') || grp.some(f => f.review_status === 'corrected');
+            if (!isReviewed) {
+                catUnreviewedGroupsCount++;
+                for (const f of grp) {
+                    if (f.review_status !== 'confirmed' && f.review_status !== 'corrected' && f.review_status !== 'rejected') {
+                        catUnreviewedFactIds.push(f.id);
+                    }
+                }
+            }
+        }
+        const encodedCatUnreviewedIds = JSON.stringify(catUnreviewedFactIds).replace(/"/g, '&quot;');
+
+        html += `<div class="category-box">
+            <div class="category-header">
+                <div class="category-title">
+                    <span>${cat.category_number}. ${escapeHtml(catTitle)}</span>
+                    <span class="badge ${availClass}">${escapeHtml(catStatus.replace(/_/g, ' '))}</span>
+                    <span style="font-size: 0.78rem; font-weight: 400; color: var(--text-secondary);">(${entryGroups.length} ${entryGroups.length === 1 ? 'item' : 'items'})</span>
+                </div>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    ${catUnreviewedGroupsCount > 0 ? `<button type="button" class="btn-sm btn-success" onclick="quickReviewEntry(${encodedCatUnreviewedIds}, 'confirmed')">Accept All</button>` : ''}
+                    <button type="button" class="btn-sm btn-secondary" onclick="openAddFactModal(${cat.category_number})">+ Add Fact</button>
+                </div>
+            </div>
+            <div class="category-body">`;
+
+        if (entryGroups.length === 0) {
+            html += `<div style="padding: 0.85rem 1rem; font-size: 0.84rem; color: var(--text-secondary);">No clinical items extracted for this category (${escapeHtml(catStatus.replace(/_/g, ' '))}).</div>`;
+        } else {
+            html += `<table class="table-clean">
+                <thead>
+                    <tr>
+                        <th style="width: 54%;">Clinical Item &amp; Source Evidence</th>
+                        <th style="width: 16%;">Context</th>
+                        <th style="width: 14%;">Review Status</th>
+                        <th style="width: 16%; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            for (const group of entryGroups) {
+                const primaryFact = pickPrimaryFact(group, cat.primary_fields);
+                const companionFacts = group.filter(f => f.id !== primaryFact.id);
+                const allFactIds = group.map(f => f.id);
+                const isAllRejected = group.every(f => f.review_status === 'rejected');
+                const isAllConfirmed = group.every(f => f.review_status === 'confirmed');
+                const isAnyCorrected = group.some(f => f.review_status === 'corrected');
+                const isAcceptedState = isAllConfirmed || isAnyCorrected;
+
+                let revBadge = '<span class="badge badge-warning">Unreviewed</span>';
+                if (isAllRejected) {
+                    revBadge = '<span class="badge badge-danger">Rejected</span>';
+                } else if (isAnyCorrected) {
+                    revBadge = '<span class="badge badge-info">Corrected</span>';
+                } else if (isAllConfirmed) {
+                    revBadge = '<span class="badge badge-success">Confirmed</span>';
+                }
+
+                // Shared evidence quote (from primaryFact or first fact with evidence)
+                const factWithEv = group.find(f => Array.isArray(f.evidence) && f.evidence.length > 0 && f.evidence[0].quote) || primaryFact;
+                let evidenceHtml = '';
+                if (factWithEv && Array.isArray(factWithEv.evidence) && factWithEv.evidence.length > 0) {
+                    const ev = factWithEv.evidence[0];
+                    if (ev.quote) {
+                        const docId = ev.document_id || '';
+                        const pageNo = ev.page_number || 1;
+                        const blockId = ev.block_id || '';
+                        evidenceHtml = `<div class="evidence-quote" title="Click to inspect source page and block" onclick="inspectDocument('${escapeHtml(docId)}', '${escapeHtml(ev.document_name || 'Document')}', ${Number(pageNo) || 1}, '${escapeHtml(blockId)}')">
+                            &ldquo;${escapeHtml(ev.quote)}&rdquo;
+                            <span class="evidence-loc">Page ${escapeHtml(pageNo)}${blockId ? ' &middot; ' + escapeHtml(blockId) : ''}</span>
+                        </div>`;
+                    }
+                }
+
+                const primaryUnit = primaryFact.unit ? ` <span style="color: var(--text-secondary); font-weight: 500;">${escapeHtml(primaryFact.unit)}</span>` : '';
+                const showPrimaryLabel = companionFacts.length === 0 || !['diagnosis', 'instruction', 'problem', 'symptom'].includes(primaryFact.field_name);
+
+                let subfieldsHtml = '';
+                if (companionFacts.length > 0) {
+                    subfieldsHtml = `<div class="entry-subfields">`;
+                    for (const sf of companionFacts) {
+                        const sfUnit = sf.unit ? ` ${escapeHtml(sf.unit)}` : '';
+                        subfieldsHtml += `<span class="subfield-item" title="Click to edit ${escapeHtml(formatFieldName(sf.field_name))}" onclick="openEditEntryModal('${escapeHtml(sf.id)}', ${ JSON.stringify(allFactIds).replace(/"/g, '&quot;') })">
+                            <span class="subfield-key">${escapeHtml(formatFieldName(sf.field_name))}:</span>
+                            <span class="subfield-val">${escapeHtml(sf.value)}${sfUnit}</span>
+                        </span>`;
+                    }
+                    subfieldsHtml += `</div>`;
+                }
+
+                const timeFact = group.find(f => f.event_time);
+                const timeHtml = timeFact ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">Time: ${escapeHtml(timeFact.event_time)}</div>` : '';
+
+                const factIdsAttr = allFactIds.map(escapeHtml).join(',');
+                const encodedIds = JSON.stringify(allFactIds).replace(/"/g, '&quot;');
+
+                html += `<tr id="fact-row-${escapeHtml(primaryFact.id)}" data-fact-ids="${factIdsAttr}" style="${isAllRejected ? 'opacity: 0.5;' : ''}">
+                    <td>
+                        <div class="entry-headline">
+                            ${showPrimaryLabel ? `<span class="entry-primary-label">${escapeHtml(formatFieldName(primaryFact.field_name))}:</span>` : ''}
+                            <span>${escapeHtml(primaryFact.value)}</span>${primaryUnit}
+                        </div>
+                        ${subfieldsHtml}
+                        ${evidenceHtml}
+                    </td>
+                    <td>
+                        ${renderContextBadges(primaryFact)}
+                        ${timeHtml}
+                    </td>
+                    <td>
+                        ${revBadge}
+                        ${primaryFact.origin === 'manual' ? '<div style="font-size:0.72rem; color:var(--text-secondary); margin-top:0.2rem;">Manual entry</div>' : ''}
+                    </td>
+                    <td>
+                        <div class="cell-actions">
+                            ${!isAcceptedState ? `<button type="button" class="btn-sm btn-success" onclick="quickReviewEntry(${encodedIds}, 'confirmed')">Confirm</button>` : ''}
+                            <button type="button" class="btn-sm btn-secondary" onclick="openEditEntryModal('${escapeHtml(primaryFact.id)}', ${encodedIds})">Edit</button>
+                            ${!isAllRejected ? `<button type="button" class="btn-sm btn-danger" onclick="quickReviewEntry(${encodedIds}, 'rejected')">Reject</button>` : ''}
+                        </div>
+                    </td>
+                </tr>`;
+            }
+
+            html += `</tbody></table>`;
+        }
+
+        html += `</div></div>`;
+    }
+
+    // Compact summary bar for empty categories when "Show Empty Categories" is unchecked
+    if (!showEmpty && emptyCategories.length > 0) {
+        html += `<div class="empty-cats-bar">
+            <div class="empty-cats-title">
+                Not Documented / Empty Categories (${emptyCategories.length}) &mdash; Click any category to add a manual fact, or check "Show Empty Categories" above:
+            </div>
+            <div class="empty-cats-pills">
+                ${emptyCategories.map(c =>
+                    `<span class="empty-cat-pill" onclick="openAddFactModal(${c.category_number})">${c.category_number}. ${escapeHtml(c.display_name)}</span>`
+                ).join('')}
+            </div>
+        </div>`;
+    }
+
+    container.innerHTML = html || '<p style="color: var(--text-secondary); font-size: 0.88rem;">No matching clinical entries found.</p>';
+}
+
+function populateCategoryDropdown() {
+    const select = document.getElementById('modal-category-number');
+    if (!profileData || !profileData.categories) return;
+    select.innerHTML = profileData.categories.map(c =>
+        `<option value="${c.category_number}">${c.category_number}. ${escapeHtml(c.display_name)}</option>`
+    ).join('');
+}
+
+async function uploadFiles() {
+    const files = document.getElementById('files').files;
+    if (files.length === 0) {
+        alert('Please select at least one file.');
+        return;
+    }
+
+    const formData = new FormData();
+    for (const file of files) {
+        formData.append('files', file);
+    }
+
+    const status = document.getElementById('upload-status');
+    status.innerHTML = '<span>Uploading and parsing files...</span>';
+
+    try {
+        const response = await fetch(`/documents/upload/${patientId}`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        let html = '<ul style="padding-left: 1.2rem;">';
+        for (const result of (data.results || [])) {
+            if (result.success) {
+                html += `<li class="success">&check; ${escapeHtml(result.filename)} &mdash; ${result.pages} page(s)</li>`;
+            } else {
+                html += `<li class="error">&cross; ${escapeHtml(result.filename)} &mdash; ${escapeHtml(result.error)}</li>`;
+            }
+        }
+        html += '</ul>';
+        status.innerHTML = html;
+        document.getElementById('files').value = '';
+        await loadPatientWorkspace();
+    } catch (error) {
+        status.innerHTML = `<p class="error">Upload failed: ${escapeHtml(error.message)}</p>`;
+    }
+}
+
+async function pasteText() {
+    const text = document.getElementById('paste-text').value;
+    const title = document.getElementById('paste-title').value || 'Pasted clinical note';
+    if (!text.trim()) {
+        alert('Please paste clinical note text.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('title', title);
+
+    const status = document.getElementById('upload-status');
+    status.innerHTML = '<span>Saving pasted note...</span>';
+
+    try {
+        const response = await fetch(`/documents/paste/${patientId}`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.success) {
+            status.innerHTML = '<span class="success">&check; Pasted note saved and parsed.</span>';
+            document.getElementById('paste-text').value = '';
+            document.getElementById('paste-title').value = '';
+            await loadPatientWorkspace();
+        } else {
+            status.innerHTML = `<span class="error">&cross; ${escapeHtml(data.error)}</span>`;
+        }
+    } catch (error) {
+        status.innerHTML = `<span class="error">Failed: ${escapeHtml(error.message)}</span>`;
+    }
+}
+
+async function reparseDocument(docId) {
+    try {
+        const response = await fetch(`/documents/${docId}/reparse`, { method: 'POST' });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Reparse failed: ${data.error}`);
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Reparse error: ${error.message}`);
+    }
+}
+
+async function deleteDocument(docId) {
+    if (!confirm('Delete this document and its parsed pages?')) return;
+    try {
+        const response = await fetch(`/documents/${docId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Delete failed: ${data.error}`);
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Delete error: ${error.message}`);
+    }
+}
+
+async function inspectDocument(docId, title, highlightPage = null, highlightBlock = null) {
+    if (!docId || docId === 'manual_entry') return;
+    const modal = document.getElementById('doc-modal');
+    const titleEl = document.getElementById('doc-modal-title');
+    const bodyEl = document.getElementById('doc-modal-body');
+
+    titleEl.textContent = `Document Inspector: ${title}`;
+    bodyEl.innerHTML = '<p>Loading pages and blocks...</p>';
+    modal.style.display = 'flex';
+
+    try {
+        const response = await fetch(`/documents/${docId}/pages`);
+        const data = await response.json();
+        if (data.error || data.detail) {
+            bodyEl.innerHTML = `<p class="error">${escapeHtml(data.error || data.detail)}</p>`;
+            return;
+        }
+
+        let html = `<div style="margin-bottom: 0.75rem;">
+            <a href="/documents/${docId}/download" target="_blank" class="btn-sm btn-secondary">Open Raw File in New Tab &nearr;</a>
+        </div>`;
+
+        for (const page of (data.pages || [])) {
+            const isTargetPage = highlightPage && Number(page.page_number) === Number(highlightPage);
+            html += `<div style="border: 2px solid ${isTargetPage ? 'var(--primary)' : 'var(--border)'}; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <strong>Page ${page.page_number}</strong>
+                    <div style="display: flex; gap: 0.35rem;">
+                        <span class="badge badge-muted">Method: ${escapeHtml(page.extraction_method)}</span>
+                        <span class="badge ${page.is_readable ? 'badge-success' : 'badge-danger'}">${page.is_readable ? 'readable' : 'unreadable'}</span>
+                    </div>
+                </div>`;
+
+            if (page.blocks && page.blocks.length > 0) {
+                for (const b of page.blocks) {
+                    const isTargetBlock = highlightBlock && b.block_id === highlightBlock;
+                    html += `<div style="padding: 0.35rem 0.5rem; margin-bottom: 0.3rem; border-radius: 4px; background: ${isTargetBlock ? '#e0f2fe' : '#f8fafc'}; border-left: 3px solid ${isTargetBlock ? 'var(--primary)' : '#cbd5e1'}; font-size: 0.84rem;">
+                        <code style="font-size: 0.74rem; color: var(--primary); font-weight: 600;">[${escapeHtml(b.block_id)}]</code> ${escapeHtml(b.text)}
+                    </div>`;
+                }
+            } else {
+                html += `<pre style="white-space: pre-wrap; font-size: 0.84rem; background: #f8fafc; padding: 0.5rem;">${escapeHtml(page.normalized_text || page.raw_text || '(No text extracted)')}</pre>`;
+            }
+            html += `</div>`;
+        }
+        bodyEl.innerHTML = html;
+    } catch (error) {
+        bodyEl.innerHTML = `<p class="error">Failed to load pages: ${escapeHtml(error.message)}</p>`;
+    }
+}
+
+function closeDocModal() {
+    document.getElementById('doc-modal').style.display = 'none';
+}
+
+async function startAnalysis() {
+    const statusDiv = document.getElementById('analysis-status');
+    const allowPartial = document.getElementById('allow-partial-readable').checked;
+    statusDiv.innerHTML = '<span style="color: var(--primary); font-weight: 500;">Starting clinical extraction pipeline...</span>';
+
+    try {
+        const response = await fetch(`/processing/analyze/${patientId}?allow_partial_readable=${allowPartial}`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        if (data.success) {
+            pollStatus();
+        } else {
+            if (data.requires_acknowledgment) {
+                document.getElementById('allow-partial-readable').checked = true;
+            }
+            statusDiv.innerHTML = `<span class="error">Failed to start: ${escapeHtml(data.error || 'Unknown error')}</span>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<span class="error">Error: ${escapeHtml(error.message)}</span>`;
+    }
+}
+
+async function retryFailedStages() {
+    const statusDiv = document.getElementById('analysis-status');
+    statusDiv.innerHTML = '<span style="color: var(--primary);">Retrying failed stages...</span>';
+    try {
+        const response = await fetch(`/processing/retry/${patientId}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            pollStatus();
+        } else {
+            statusDiv.innerHTML = `<span class="error">Retry failed: ${escapeHtml(data.error)}</span>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<span class="error">Retry error: ${escapeHtml(error.message)}</span>`;
+    }
+}
+
+async function regenerateSummary() {
+    const container = document.getElementById('summary-container');
+    container.innerHTML = '<p style="color: var(--text-secondary);">Regenerating grounded summary from active facts...</p>';
+    try {
+        const response = await fetch(`/processing/summary/${patientId}`, { method: 'POST' });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Summary regeneration failed: ${data.error}`);
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Error regenerating summary: ${error.message}`);
+    }
+}
+
+async function pollStatus() {
+    pollTimer = null;
+    try {
+        const response = await fetch(`/processing/status/${patientId}`);
+        const job = await response.json();
+        renderJobStatus(job);
+        if (!['pending', 'parsing', 'extracting', 'summarizing', 'icd_lookup'].includes(job.status)) {
+            await loadPatientWorkspace();
+        }
+    } catch (error) {
+        console.error('Status poll failed:', error);
+    }
+}
+
+async function quickReviewEntry(factIds, reviewStatus) {
+    const ids = Array.isArray(factIds) ? factIds : [factIds];
+    try {
+        for (const fid of ids) {
+            await fetch(`/facts/${fid}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    review_status: reviewStatus,
+                    reviewer_note: `Reviewer marked clinical entry as ${reviewStatus}`
+                })
+            });
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Error updating entry: ${error.message}`);
+    }
+}
+
+async function acceptAllFacts() {
+    if (!profileData || !profileData.categories) return;
+    const unreviewedIds = [];
+    for (const cat of profileData.categories) {
+        for (const f of (cat.facts || [])) {
+            if (f.review_status !== 'confirmed' && f.review_status !== 'corrected' && f.review_status !== 'rejected') {
+                unreviewedIds.push(f.id);
+            }
+        }
+    }
+    if (unreviewedIds.length === 0) return;
+
+    const btn = document.getElementById('accept-all-facts-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Accepting...';
+    }
+    try {
+        await quickReviewEntry(unreviewedIds, 'confirmed');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function acceptAllIcd() {
+    if (!profileData || !profileData.icd_mappings) return;
+    const btn = document.getElementById('accept-all-icd-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Accepting...';
+    }
+    try {
+        for (const item of profileData.icd_mappings) {
+            if (!item.is_eligible_for_icd) continue;
+            const dec = item.decision;
+            const alreadyDecided = dec && !dec.needs_review && (dec.mapping_status === 'accepted' || dec.mapping_status === 'rejected');
+            if (alreadyDecided) continue;
+
+            const selectEl = document.getElementById(`icd-select-${item.fact_id}`);
+            const candidateId = selectEl ? selectEl.value : (item.candidates && item.candidates[0] ? item.candidates[0].id : null);
+            if (!candidateId) continue;
+
+            await fetch(`/icd/decision/${item.fact_id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mapping_status: 'accepted',
+                    candidate_id: candidateId,
+                    reviewer_note: 'Reviewer accepted ICD mapping via Accept All'
+                })
+            });
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Error accepting ICD codes: ${error.message}`);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function openAddFactModal(defaultCatNum = 11) {
+    currentModalEntryFacts = [];
+    document.getElementById('fact-modal-title').textContent = 'Add Manual Clinical Fact';
+    document.getElementById('modal-fact-id').value = '';
+    document.getElementById('modal-subfield-switcher-group').style.display = 'none';
+    document.getElementById('modal-category-group').style.display = 'block';
+    document.getElementById('modal-field-group').style.display = 'block';
+    document.getElementById('modal-category-number').value = String(defaultCatNum);
+    document.getElementById('modal-field-name').value = Number(defaultCatNum) === 11 ? 'diagnosis' : '';
+    document.getElementById('modal-value').value = '';
+    document.getElementById('modal-unit').value = '';
+    document.getElementById('modal-assertion').value = 'present';
+    document.getElementById('modal-temporality').value = 'current';
+    document.getElementById('modal-experiencer').value = 'patient';
+    document.getElementById('modal-event-time').value = '';
+    document.getElementById('modal-review-status').value = 'confirmed';
+    document.getElementById('modal-reviewer-note').value = 'Added manually by reviewer';
+    document.getElementById('fact-modal').style.display = 'flex';
+}
+
+function openEditEntryModal(selectedFactId, allEntryFactIds) {
+    const ids = Array.isArray(allEntryFactIds) && allEntryFactIds.length > 0 ? allEntryFactIds : [selectedFactId];
+    currentModalEntryFacts = ids.map(id => factLookupById[id]).filter(Boolean);
+
+    const switcherGroup = document.getElementById('modal-subfield-switcher-group');
+    const switcherSelect = document.getElementById('modal-subfield-switcher');
+
+    if (currentModalEntryFacts.length > 1) {
+        switcherGroup.style.display = 'block';
+        switcherSelect.innerHTML = currentModalEntryFacts.map(f =>
+            `<option value="${escapeHtml(f.id)}" ${f.id === selectedFactId ? 'selected' : ''}>
+                ${escapeHtml(formatFieldName(f.field_name))}: ${escapeHtml(f.value)}
+            </option>`
+        ).join('');
+    } else {
+        switcherGroup.style.display = 'none';
+    }
+
+    populateModalWithFact(factLookupById[selectedFactId] || currentModalEntryFacts[0]);
+    document.getElementById('fact-modal').style.display = 'flex';
+}
+
+function switchModalSubfield(factId) {
+    const fact = factLookupById[factId];
+    if (fact) {
+        populateModalWithFact(fact);
+    }
+}
+
+function populateModalWithFact(fact) {
+    if (!fact) return;
+    document.getElementById('fact-modal-title').textContent = `Edit Field: ${formatFieldName(fact.field_name)}`;
+    document.getElementById('modal-fact-id').value = fact.id;
+    document.getElementById('modal-category-group').style.display = 'none';
+    document.getElementById('modal-field-group').style.display = 'none';
+    document.getElementById('modal-field-name').value = fact.field_name;
+    document.getElementById('modal-value').value = fact.value || '';
+    document.getElementById('modal-unit').value = fact.unit || '';
+    document.getElementById('modal-assertion').value = fact.assertion || 'present';
+    document.getElementById('modal-temporality').value = fact.temporality || 'current';
+    document.getElementById('modal-experiencer').value = fact.experiencer || 'patient';
+    document.getElementById('modal-event-time').value = fact.event_time || '';
+    document.getElementById('modal-review-status').value = 'corrected';
+    document.getElementById('modal-reviewer-note').value = '';
+}
+
+function closeFactModal() {
+    document.getElementById('fact-modal').style.display = 'none';
+}
+
+async function submitFactModal(event) {
+    event.preventDefault();
+    const factId = document.getElementById('modal-fact-id').value;
+
+    try {
+        let response;
+        if (factId) {
+            const payload = {
+                value: document.getElementById('modal-value').value,
+                unit: document.getElementById('modal-unit').value || null,
+                assertion: document.getElementById('modal-assertion').value,
+                temporality: document.getElementById('modal-temporality').value,
+                experiencer: document.getElementById('modal-experiencer').value,
+                event_time: document.getElementById('modal-event-time').value || null,
+                review_status: document.getElementById('modal-review-status').value,
+                reviewer_note: document.getElementById('modal-reviewer-note').value || null
+            };
+            response = await fetch(`/facts/${factId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            const payload = {
+                category_number: Number(document.getElementById('modal-category-number').value),
+                field_name: document.getElementById('modal-field-name').value,
+                value: document.getElementById('modal-value').value,
+                unit: document.getElementById('modal-unit').value || null,
+                assertion: document.getElementById('modal-assertion').value,
+                temporality: document.getElementById('modal-temporality').value,
+                experiencer: document.getElementById('modal-experiencer').value,
+                event_time: document.getElementById('modal-event-time').value || null,
+                reviewer_note: document.getElementById('modal-reviewer-note').value || null
+            };
+            response = await fetch(`/facts/patient/${patientId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        }
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Failed to save fact: ${data.error || data.detail || JSON.stringify(data)}`);
+            return;
+        }
+        closeFactModal();
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Error saving fact: ${error.message}`);
+    }
+}
+
+async function submitIcdDecision(factId, mappingStatus) {
+    const selectEl = document.getElementById(`icd-select-${factId}`);
+    const candidateId = selectEl ? selectEl.value : null;
+
+    if (mappingStatus === 'accepted' && !candidateId) {
+        alert('Please select a valid WHO ICD-11 candidate code before accepting.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/icd/decision/${factId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mapping_status: mappingStatus,
+                candidate_id: candidateId || null,
+                reviewer_note: `Reviewer marked ICD mapping as ${mappingStatus}`
+            })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`ICD decision failed: ${data.error || data.detail}`);
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`ICD decision error: ${error.message}`);
+    }
+}
+
+async function lookupIcd(factId) {
+    const queryEl = document.getElementById(`icd-query-${factId}`);
+    const refinedQuery = queryEl ? queryEl.value : '';
+
+    try {
+        const response = await fetch(`/icd/lookup/${factId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refined_query: refinedQuery })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`WHO ICD-11 lookup failed: ${data.error || data.detail}`);
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`WHO ICD-11 lookup error: ${error.message}`);
+    }
+}
+
+function downloadFactsCsv() {
+    const incIcd = document.getElementById('export-unaccepted-icd').checked;
+    const incNotDoc = document.getElementById('export-not-documented').checked;
+    const incRej = document.getElementById('export-rejected').checked;
+    const url = `/export/facts/${patientId}?include_unaccepted_icd=${incIcd}&include_not_documented=${incNotDoc}&include_rejected=${incRej}`;
+    window.location.href = url;
+}
+
+// Initial workspace load
+loadPatientWorkspace();
+</script>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Patients - Clinical Notes Extraction PoC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2>Patient Records</h2>
+        <p style="color: var(--text-secondary); margin: 0.2rem 0 0 0; font-size: 0.88rem;">
+            Upload clinical documents, extract 19 clinical categories, map diagnoses to WHO ICD-11 MMS, and export structured CSVs.
+        </p>
+    </div>
+    <button onclick="showCreateForm()">+ New Demo Patient</button>
+</div>
+
+<div id="create-form" style="display: none; margin-bottom: 1.5rem;" class="card">
+    <h3>Create New Demo Patient</h3>
+    <form method="POST" action="/patients/">
+        <div class="form-group">
+            <label for="display_name">Synthetic / Demo Patient Label</label>
+            <input type="text" id="display_name" name="display_name" required placeholder="e.g., Demo Patient 01 - John Doe (Synthetic)">
+        </div>
+        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+            <button type="submit">Create Patient</button>
+            <button type="button" class="btn-secondary" onclick="hideCreateForm()">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<div class="patients-table-container">
+    {% if patients %}
+        <table class="patients-table">
+            <thead>
+                <tr>
+                    <th>Patient</th>
+                    <th>Created</th>
+                    <th>Documents</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for patient in patients %}
+                <tr class="patient-row" onclick="window.location='/patients/{{ patient.id }}'">
+                    <td>
+                        <div class="patient-name-cell">
+                            <div class="patient-avatar">{{ patient.display_name[0].upper() }}</div>
+                            <div>
+                                <div class="patient-name">{{ patient.display_name }}</div>
+                                <div class="patient-id">ID: {{ patient.id }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ patient.created_at.strftime('%b %d, %Y at %H:%M') if patient.created_at else '' }}</td>
+                    <td>
+                        <span class="badge badge-muted">{{ patient.documents|length }} file(s)</span>
+                    </td>
+                    <td>
+                        {% if patient.documents|length > 0 %}
+                            <span class="badge badge-success">{{ patient.documents|length }} Doc(s) Ready</span>
+                        {% else %}
+                            <span class="badge badge-warning">No Documents</span>
+                        {% endif %}
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <div style="display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center;">
+                            <a href="/patients/{{ patient.id }}" class="btn-primary btn-sm">Open Workspace</a>
+                            <button type="button" class="btn-sm btn-danger" onclick="deletePatient('{{ patient.id }}', '{{ patient.display_name| e }}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            <h3>No patients yet</h3>
+            <p style="margin-top: 0.25rem;">Create your first demo patient to upload clinical notes and run structured extraction.</p>
+            <button onclick="showCreateForm()" style="margin-top: 1rem;">+ Create First Patient</button>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.patients-table-container {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+}
+.patients-table { width: 100%; border-collapse: collapse; }
+.patients-table thead { background: #f8fafc; border-bottom: 1px solid #cbd5e1; }
+.patients-table th {
+    text-align: left; padding: 0.75rem 1.25rem; font-weight: 600; font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary);
+}
+.patients-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; cursor: pointer; }
+.patients-table tbody tr:last-child { border-bottom: none; }
+.patients-table tbody tr:hover { background: #f8fafc; }
+.patients-table td { padding: 0.9rem 1.25rem; vertical-align: middle; }
+.patient-name-cell { display: flex; align-items: center; gap: 0.85rem; }
+.patient-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--primary);
+    color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.9rem;
+}
+.patient-name { font-weight: 600; color: var(--navy); font-size: 0.92rem; }
+.patient-id { font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; }
+.empty-state { text-align: center; padding: 3rem 2rem; color: var(--text-secondary); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showCreateForm() {
+    document.getElementById('create-form').style.display = 'block';
+    document.getElementById('display_name').focus();
+}
+function hideCreateForm() {
+    document.getElementById('create-form').style.display = 'none';
+}
+async function deletePatient(patientId, name) {
+    if (!confirm(`Delete demo patient "${name}" and all associated documents/facts?`)) return;
+    try {
+        const res = await fetch(`/patients/${patientId}`, { method: 'DELETE' });
+        if (res.ok) window.location.reload();
+        else alert('Failed to delete patient');
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

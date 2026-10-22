@@ -1,0 +1,25 @@
+DISCHARGE MEDICATION & FOLLOW-UP PLAN
+Patient Name: David Miller
+Age / Sex: 54-year-old Male
+Encounter Date: 2026-10-20
+Attending Physician: Dr. Elena Rostova, MD (Cardiology)
+
+FINAL DIAGNOSES:
+1. Non-ST elevation myocardial infarction (NSTEMI)
+2. Essential hypertension
+3. Type 2 diabetes mellitus
+
+DISCHARGE MEDICATIONS:
+- Aspirin 81 mg PO once daily (indefinite)
+- Clopidogrel 75 mg PO once daily for 12 months
+- Atorvastatin 80 mg PO nightly
+- Metoprolol succinate 50 mg PO once daily
+- Metformin 500 mg PO twice daily with meals
+
+ALLERGIES:
+- Penicillin (moderate rash / hives)
+
+DISCHARGE INSTRUCTIONS & FOLLOW-UP:
+- Follow up with Cardiology Clinic (Dr. Rostova) in 2 weeks.
+- Adhere to a low-sodium (<2g/day) cardiac diet.
+- Return to the Emergency Department immediately if chest pain, shortness of breath, or dizziness recurs.
