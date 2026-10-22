@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     llm_max_concurrent_requests: int = 3
-    max_active_patient_analyses: int = 1
-    job_lease_ttl_seconds: int = 600
-    job_lease_timeout_minutes: int = 10
+    max_active_patient_analyses: int = 2
+    job_lease_ttl_seconds: int = 120
+    job_lease_timeout_minutes: int = 2
     ocr_worker_concurrency: int = 1
 
     # WHO ICD-11

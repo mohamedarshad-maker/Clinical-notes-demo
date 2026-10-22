@@ -27,7 +27,8 @@ METADATA_KEYS = {
 def recover_stale_jobs(db: Session, force_all_active: bool = False) -> int:
     """
     Mark active jobs whose lease has expired (or all active jobs on startup)
-    as 'interrupted' so they can be retried cleanly.
+    as 'interrupted' (or 'completed' if facts & summary already finished) so
+    they never stay stuck or block new patient analyses.
     """
     cutoff = datetime.utcnow() - timedelta(minutes=settings.job_lease_timeout_minutes)
     query = db.query(ProcessingJob).filter(
@@ -37,8 +38,21 @@ def recover_stale_jobs(db: Session, force_all_active: bool = False) -> int:
 
     stale_jobs = query.all()
     for job in stale_jobs:
-        job.status = "interrupted"
-        job.error_message = "Job was interrupted by process restart or lease timeout. Ready to retry."
+        stages = dict(job.stages or {})
+        # If facts and summary already succeeded and the job was only in the final ICD lookup stage
+        # when Render restarted the container, mark it completed instead of interrupted.
+        if stages.get("facts") == "completed" and stages.get("summary") == "completed":
+            if stages.get("icd") == "running":
+                stages["icd"] = "completed"
+            job.stages = stages
+            job.status = "completed"
+            job.current_stage = None
+            job.error_message = None
+            job.completed_at = job.completed_at or datetime.utcnow()
+        else:
+            job.status = "interrupted"
+            job.current_stage = None
+            job.error_message = "Job was interrupted by server restart or timeout. Click 'Retry Failed Stages' or 'Run Full Analysis'."
         job.updated_at = datetime.utcnow()
 
     if stale_jobs:
@@ -48,15 +62,13 @@ def recover_stale_jobs(db: Session, force_all_active: bool = False) -> int:
     return len(stale_jobs)
 
 
-def get_active_job(db: Session) -> Optional[ProcessingJob]:
-    """Return currently active processing job after recovering any expired leases."""
+def get_active_job(db: Session, patient_id: Optional[uuid.UUID] = None) -> Optional[ProcessingJob]:
+    """Return currently active processing job (scoped to patient_id if provided) after recovering expired leases."""
     recover_stale_jobs(db, force_all_active=False)
-    return (
-        db.query(ProcessingJob)
-        .filter(ProcessingJob.status.in_(ACTIVE_JOB_STATUSES))
-        .order_by(ProcessingJob.created_at.desc())
-        .first()
-    )
+    query = db.query(ProcessingJob).filter(ProcessingJob.status.in_(ACTIVE_JOB_STATUSES))
+    if patient_id is not None:
+        query = query.filter(ProcessingJob.patient_id == patient_id)
+    return query.order_by(ProcessingJob.created_at.desc()).first()
 
 
 class ProcessingService:

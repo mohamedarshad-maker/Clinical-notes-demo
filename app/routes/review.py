@@ -193,6 +193,10 @@ async def get_patient_profile_data(
             "created_at": d.created_at.isoformat() if d.created_at else None
         })
 
+    # Recover any expired/orphaned jobs first so UI always shows accurate status
+    from app.services.processing import recover_stale_jobs
+    recover_stale_jobs(db, force_all_active=False)
+
     # Latest processing job
     latest_job = (
         db.query(ProcessingJob)

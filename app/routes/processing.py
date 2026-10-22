@@ -43,14 +43,23 @@ async def analyze_patient(
                 "error": "Invalid patient ID format"
             }, status_code=400)
 
-        # Single active analysis admission control
-        active_job = get_active_job(db)
-        if active_job:
-            return JSONResponse({
-                "success": False,
-                "error": "Another analysis job is currently running. Please wait for it to finish.",
-                "active_job_id": str(active_job.id)
-            }, status_code=409)
+        # Recover any stale/orphaned jobs first; if THIS patient has an active job that was
+        # orphaned by a Render redeploy, mark it interrupted so a fresh run can proceed immediately.
+        recover_stale_jobs(db, force_all_active=False)
+        existing_patient_jobs = (
+            db.query(ProcessingJob)
+            .filter(
+                ProcessingJob.patient_id == patient_uuid,
+                ProcessingJob.status.in_({"pending", "parsing", "extracting", "summarizing", "icd_lookup"})
+            )
+            .all()
+        )
+        for pj in existing_patient_jobs:
+            pj.status = "interrupted"
+            pj.current_stage = None
+            pj.error_message = "Superseded by new analysis run."
+        if existing_patient_jobs:
+            db.commit()
 
         # Resolve target documents
         query = db.query(Document).filter(
@@ -177,12 +186,7 @@ async def retry_patient_processing(
     except ValueError:
         return JSONResponse({"success": False, "error": "Invalid patient ID format"}, status_code=400)
 
-    active_job = get_active_job(db)
-    if active_job:
-        return JSONResponse({
-            "success": False,
-            "error": "Another analysis job is currently running."
-        }, status_code=409)
+    recover_stale_jobs(db, force_all_active=False)
 
     job = (
         db.query(ProcessingJob)
