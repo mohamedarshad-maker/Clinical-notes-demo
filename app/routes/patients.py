@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import uuid
 
 from app.config import settings
@@ -29,7 +29,12 @@ def _get_readiness() -> dict:
 @router.get("/", response_class=HTMLResponse)
 async def list_patients(request: Request, db: Session = Depends(get_db)):
     """List all patients."""
-    patients = db.query(Patient).order_by(Patient.created_at.desc()).all()
+    patients = (
+        db.query(Patient)
+        .options(joinedload(Patient.documents))
+        .order_by(Patient.created_at.desc())
+        .all()
+    )
     return templates.TemplateResponse(
         request=request,
         name="patients/list.html",

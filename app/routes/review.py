@@ -7,7 +7,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import settings
 from app.database import get_db
@@ -40,6 +41,32 @@ class ICDLookupRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     refined_query: Optional[str] = None
+
+
+class BatchFactReviewRequest(BaseModel):
+    """Batch confirm or reject multiple clinical facts in a single request."""
+    model_config = ConfigDict(extra="forbid")
+
+    fact_ids: list[str]
+    review_status: str
+    reviewer_note: Optional[str] = None
+
+
+class BatchICDDecisionItem(BaseModel):
+    """Single item in a batch ICD decision request."""
+    model_config = ConfigDict(extra="forbid")
+
+    fact_id: str
+    candidate_id: str
+    mapping_status: str = "accepted"
+    reviewer_note: Optional[str] = None
+
+
+class BatchICDDecisionRequest(BaseModel):
+    """Batch accept/update multiple ICD-11 decisions in a single request."""
+    model_config = ConfigDict(extra="forbid")
+
+    decisions: list[BatchICDDecisionItem]
 
 
 def _serialize_fact(fact: ConsolidatedFact, doc_name_map: dict) -> dict:
@@ -131,13 +158,19 @@ async def get_patient_profile_data(
     total_pages = 0
     unreadable_pages_total = 0
 
-    for d in docs:
-        pages = (
+    pages_by_doc: dict[uuid.UUID, list[DocumentPage]] = {d.id: [] for d in docs}
+    if docs:
+        all_pages = (
             db.query(DocumentPage)
-            .filter(DocumentPage.document_id == d.id)
+            .filter(DocumentPage.document_id.in_([d.id for d in docs]))
             .order_by(DocumentPage.page_number.asc())
             .all()
         )
+        for p in all_pages:
+            pages_by_doc.setdefault(p.document_id, []).append(p)
+
+    for d in docs:
+        pages = pages_by_doc.get(d.id, [])
         total_pages += len(pages)
         unreadable_nums = [p.page_number for p in pages if not p.is_readable]
         unreadable_pages_total += len(unreadable_nums)
@@ -169,9 +202,10 @@ async def get_patient_profile_data(
     )
     job_Stages = (latest_job.stages or {}) if latest_job else {}
 
-    # Facts grouped across all 19 categories
+    # Facts grouped across all 19 categories (preload revisions in 1 query instead of N queries)
     facts = (
         db.query(ConsolidatedFact)
+        .options(selectinload(ConsolidatedFact.revisions))
         .filter(ConsolidatedFact.patient_id == patient_uuid)
         .order_by(
             ConsolidatedFact.category_number.asc(),
@@ -273,15 +307,64 @@ async def get_patient_profile_data(
             "generated_at": summary.generated_at.isoformat() if summary.generated_at else None
         }
 
-    # Diagnosis facts (Category 11) and WHO ICD-11 candidates + decisions
+    # Diagnosis facts (Category 11) and WHO ICD-11 candidates + decisions (batch-loaded)
     diag_facts = [
         f for f in facts_by_cat.get(11, [])
         if f.field_name == "diagnosis" and f.availability == "documented"
     ]
+    decisions_by_fact: dict[uuid.UUID, list[ICDDecision]] = {}
+    candidates_by_norm_q: dict[str, list[ICDCandidate]] = {}
+    candidates_by_diag_text: dict[str, list[ICDCandidate]] = {}
+
+    if diag_facts:
+        diag_ids = [df.id for df in diag_facts]
+        all_decisions = (
+            db.query(ICDDecision)
+            .options(joinedload(ICDDecision.candidate))
+            .filter(ICDDecision.fact_id.in_(diag_ids))
+            .all()
+        )
+        for dec in all_decisions:
+            decisions_by_fact.setdefault(dec.fact_id, []).append(dec)
+
+        norm_queries: set[str] = set()
+        diag_values: set[str] = set()
+        for df in diag_facts:
+            decs = decisions_by_fact.get(df.id, [])
+            p_dec = decs[0] if decs else None
+            q_str = (
+                (p_dec.refined_query if p_dec and p_dec.refined_query else None)
+                or df.value
+                or ""
+            )
+            nq = who_icd_service.sanitize_diagnosis_query(q_str).lower()
+            if nq:
+                norm_queries.add(nq)
+            if df.value:
+                diag_values.add(df.value)
+
+        filters = []
+        if norm_queries:
+            filters.append(ICDCandidate.normalized_query.in_(norm_queries))
+        if diag_values:
+            filters.append(ICDCandidate.diagnosis_text.in_(diag_values))
+
+        if filters:
+            all_cands = (
+                db.query(ICDCandidate)
+                .filter(or_(*filters))
+                .order_by(ICDCandidate.search_rank.asc())
+                .all()
+            )
+            for c in all_cands:
+                if c.normalized_query:
+                    candidates_by_norm_q.setdefault(c.normalized_query, []).append(c)
+                if c.diagnosis_text:
+                    candidates_by_diag_text.setdefault(c.diagnosis_text, []).append(c)
+
     icd_mappings = []
     for df in diag_facts:
-        decisions = db.query(ICDDecision).filter(
-            ICDDecision.fact_id == df.id).all()
+        decisions = decisions_by_fact.get(df.id, [])
         primary_decision = decisions[0] if decisions else None
 
         query_str = (
@@ -291,19 +374,9 @@ async def get_patient_profile_data(
         )
         norm_q = who_icd_service.sanitize_diagnosis_query(query_str).lower()
 
-        candidates = (
-            db.query(ICDCandidate)
-            .filter(ICDCandidate.normalized_query == norm_q)
-            .order_by(ICDCandidate.search_rank.asc())
-            .all()
-        )
+        candidates = list(candidates_by_norm_q.get(norm_q, []))
         if not candidates and df.value:
-            candidates = (
-                db.query(ICDCandidate)
-                .filter(ICDCandidate.diagnosis_text == df.value)
-                .order_by(ICDCandidate.search_rank.asc())
-                .all()
-            )
+            candidates = list(candidates_by_diag_text.get(df.value, []))
         if primary_decision and primary_decision.candidate:
             existing_ids = {c.id for c in candidates}
             if primary_decision.candidate.id not in existing_ids:
@@ -495,6 +568,130 @@ async def update_fact(
     return JSONResponse({
         "success": True,
         "fact": _serialize_fact(fact, {})
+    })
+
+
+@router.post("/facts/batch-review")
+async def batch_review_facts(
+    payload: BatchFactReviewRequest,
+    db: Session = Depends(get_db)
+):
+    """Batch confirm or reject multiple clinical facts in a single database transaction."""
+    if not payload.fact_ids:
+        return JSONResponse({"success": True, "updated_count": 0})
+
+    uuids = []
+    for fid in payload.fact_ids:
+        try:
+            uuids.append(uuid.UUID(fid))
+        except ValueError:
+            continue
+
+    if not uuids:
+        raise HTTPException(400, "No valid fact IDs provided")
+
+    facts = db.query(ConsolidatedFact).filter(ConsolidatedFact.id.in_(uuids)).all()
+    if not facts:
+        return JSONResponse({"success": True, "updated_count": 0})
+
+    now = datetime.utcnow()
+    action = "reject" if payload.review_status == "rejected" else "confirm"
+    patient_ids = set()
+    rejected_diag_ids = []
+
+    for fact in facts:
+        fact.review_status = payload.review_status
+        fact.reviewed_at = now
+        patient_ids.add(fact.patient_id)
+        db.add(ReviewRevision(
+            id=uuid.uuid4(),
+            fact_id=fact.id,
+            action=action,
+            previous_value=fact.value,
+            new_value=fact.value,
+            changed_fields=[],
+            reviewer_note=payload.reviewer_note,
+            revised_at=now
+        ))
+        if fact.category_number == 11 and fact.field_name == "diagnosis" and payload.review_status == "rejected":
+            rejected_diag_ids.append(fact.id)
+
+    if patient_ids:
+        db.query(PatientSummary).filter(
+            PatientSummary.patient_id.in_(patient_ids)
+        ).update({"is_stale": True}, synchronize_session=False)
+
+    if rejected_diag_ids:
+        db.query(ICDDecision).filter(
+            ICDDecision.fact_id.in_(rejected_diag_ids)
+        ).update({
+            "needs_review": True,
+            "invalidated_at": now,
+            "mapping_status": "rejected"
+        }, synchronize_session=False)
+
+    db.commit()
+    return JSONResponse({
+        "success": True,
+        "updated_count": len(facts)
+    })
+
+
+@router.post("/icd/batch-decision")
+async def batch_save_icd_decisions(
+    payload: BatchICDDecisionRequest,
+    db: Session = Depends(get_db)
+):
+    """Batch accept/update multiple WHO ICD-11 decisions in a single database transaction."""
+    if not payload.decisions:
+        return JSONResponse({"success": True, "updated_count": 0})
+
+    fact_uuids = []
+    items_by_fact: dict[uuid.UUID, BatchICDDecisionItem] = {}
+    for item in payload.decisions:
+        try:
+            f_uuid = uuid.UUID(item.fact_id)
+            uuid.UUID(item.candidate_id)
+            fact_uuids.append(f_uuid)
+            items_by_fact[f_uuid] = item
+        except ValueError:
+            continue
+
+    if not fact_uuids:
+        return JSONResponse({"success": True, "updated_count": 0})
+
+    existing_decisions = db.query(ICDDecision).filter(
+        ICDDecision.fact_id.in_(fact_uuids)
+    ).all()
+    existing_by_fact = {d.fact_id: d for d in existing_decisions}
+
+    now = datetime.utcnow()
+    for f_uuid, item in items_by_fact.items():
+        c_uuid = uuid.UUID(item.candidate_id)
+        dec = existing_by_fact.get(f_uuid)
+        if not dec:
+            db.add(ICDDecision(
+                id=uuid.uuid4(),
+                fact_id=f_uuid,
+                candidate_id=c_uuid,
+                mapping_status=item.mapping_status,
+                needs_review=False,
+                reviewer_note=item.reviewer_note,
+                icd_release=settings.who_icd_release,
+                icd_language=settings.who_icd_language,
+                decided_at=now
+            ))
+        else:
+            dec.candidate_id = c_uuid
+            dec.mapping_status = item.mapping_status
+            dec.needs_review = False
+            dec.reviewer_note = item.reviewer_note
+            dec.decided_at = now
+
+    db.commit()
+    return JSONResponse({
+        "success": True,
+        "updated_count": len(items_by_fact)
     })
 
 

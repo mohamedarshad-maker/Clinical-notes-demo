@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 from typing import List, Dict, Any, Optional, Union
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models import (
     Patient, ConsolidatedFact, PatientSummary,
     ICDDecision, ProcessingJob, ExtractionSnapshot
@@ -73,6 +73,21 @@ class ExportService:
             ConsolidatedFact.field_name
         ).all()
 
+        diag_fact_ids = [
+            f.id for f in facts
+            if f.category_number == 11 and f.field_name == "diagnosis"
+        ]
+        decisions_by_fact: Dict[uuid.UUID, List[ICDDecision]] = {}
+        if diag_fact_ids:
+            all_decs = (
+                self.db.query(ICDDecision)
+                .options(joinedload(ICDDecision.candidate))
+                .filter(ICDDecision.fact_id.in_(diag_fact_ids))
+                .all()
+            )
+            for dec in all_decs:
+                decisions_by_fact.setdefault(dec.fact_id, []).append(dec)
+
         rows: List[Dict[str, str]] = []
         documented_categories = set()
 
@@ -96,9 +111,7 @@ class ExportService:
 
             icd_rows = []
             if fact.category_number == 11 and fact.field_name == "diagnosis":
-                decisions = self.db.query(ICDDecision).filter(
-                    ICDDecision.fact_id == fact.id
-                ).all()
+                decisions = decisions_by_fact.get(fact.id, [])
 
                 for decision in decisions:
                     # Default export includes only reviewer-accepted codes that are not stale (needs_review=False)

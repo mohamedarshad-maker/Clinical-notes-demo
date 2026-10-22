@@ -1979,17 +1979,17 @@ async function pollStatus() {
 
 async function quickReviewEntry(factIds, reviewStatus) {
     const ids = Array.isArray(factIds) ? factIds : [factIds];
+    if (ids.length === 0) return;
     try {
-        for (const fid of ids) {
-            await fetch(`/facts/${fid}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    review_status: reviewStatus,
-                    reviewer_note: `Reviewer marked clinical entry as ${reviewStatus}`
-                })
-            });
-        }
+        await fetch('/facts/batch-review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fact_ids: ids,
+                review_status: reviewStatus,
+                reviewer_note: `Reviewer marked clinical entry as ${reviewStatus}`
+            })
+        });
         await loadPatientWorkspace();
     } catch (error) {
         alert(`Error updating entry: ${error.message}`);
@@ -2045,6 +2045,7 @@ async function acceptAllIcd() {
         btn.textContent = 'Accepting...';
     }
     try {
+        const decisions = [];
         for (const item of profileData.icd_mappings) {
             if (!item.is_eligible_for_icd) continue;
             const dec = item.decision;
@@ -2055,14 +2056,18 @@ async function acceptAllIcd() {
             const candidateId = selectEl ? selectEl.value : (item.candidates && item.candidates[0] ? item.candidates[0].id : null);
             if (!candidateId || candidateId === '__manual__') continue;
 
-            await fetch(`/icd/decision/${item.fact_id}`, {
+            decisions.push({
+                fact_id: item.fact_id,
+                candidate_id: candidateId,
+                mapping_status: 'accepted',
+                reviewer_note: 'Reviewer accepted ICD mapping via Accept All'
+            });
+        }
+        if (decisions.length > 0) {
+            await fetch('/icd/batch-decision', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    mapping_status: 'accepted',
-                    candidate_id: candidateId,
-                    reviewer_note: 'Reviewer accepted ICD mapping via Accept All'
-                })
+                body: JSON.stringify({ decisions })
             });
         }
         await loadPatientWorkspace();
