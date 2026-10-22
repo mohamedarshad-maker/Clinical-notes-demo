@@ -6,12 +6,24 @@ import shutil
 from pathlib import Path
 from typing import Optional
 from uuid import UUID
-from supabase import create_client, Client
+from storage3 import create_client as create_storage_client
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 LOCAL_STORAGE_ROOT = Path(".local_storage")
+
+
+class _StorageClientWrapper:
+    """Thin wrapper exposing .storage from storage3 so both sb_secret_ and JWT keys work."""
+
+    def __init__(self, supabase_url: str, supabase_key: str):
+        storage_url = f"{supabase_url.rstrip('/')}/storage/v1"
+        headers = {
+            "apiKey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+        }
+        self.storage = create_storage_client(storage_url, headers, is_async=False)
 
 
 class StorageService:
@@ -20,14 +32,14 @@ class StorageService:
     def __init__(self):
         """Initialize storage client."""
         self.bucket_name = settings.supabase_storage_bucket
-        self._client: Optional[Client] = None
+        self._client: Optional[_StorageClientWrapper] = None
 
     @property
-    def client(self) -> Client:
-        """Lazy initialize Supabase client."""
+    def client(self) -> _StorageClientWrapper:
+        """Lazy initialize Supabase Storage client (supports both sb_secret_ and JWT service_role keys)."""
         if self._client is None:
             if settings.is_storage_configured:
-                self._client = create_client(
+                self._client = _StorageClientWrapper(
                     settings.supabase_url,
                     settings.effective_supabase_key
                 )
