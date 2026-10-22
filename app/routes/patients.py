@@ -7,7 +7,7 @@ import uuid
 
 from app.config import settings
 from app.database import get_db
-from app.models import Patient
+from app.models import Patient, ConsolidatedFact, ProcessingJob
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/patients", tags=["patients"])
@@ -28,13 +28,32 @@ def _get_readiness() -> dict:
 
 @router.get("/", response_class=HTMLResponse)
 async def list_patients(request: Request, db: Session = Depends(get_db)):
-    """List all patients."""
+    """List all patients with their processed / unprocessed profile status."""
     patients = (
         db.query(Patient)
         .options(joinedload(Patient.documents))
         .order_by(Patient.created_at.desc())
         .all()
     )
+
+    # Batch-check which patients have completed analysis or extracted facts in 2 lightweight queries
+    processed_patient_ids = {
+        row[0]
+        for row in db.query(ConsolidatedFact.patient_id)
+        .filter(ConsolidatedFact.availability == "documented")
+        .distinct()
+        .all()
+    } | {
+        row[0]
+        for row in db.query(ProcessingJob.patient_id)
+        .filter(ProcessingJob.status.in_(["completed", "completed_with_warnings"]))
+        .distinct()
+        .all()
+    }
+
+    for p in patients:
+        p.is_processed = p.id in processed_patient_ids
+
     return templates.TemplateResponse(
         request=request,
         name="patients/list.html",
