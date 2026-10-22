@@ -5,8 +5,77 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Clinical Notes Extraction PoC{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(248, 250, 252, 0.82);
+            backdrop-filter: blur(2px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.18s ease;
+        }
+        .loading-overlay.active {
+            display: flex;
+        }
+        .loading-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem 2.25rem;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.85rem;
+        }
+        .loading-wheel {
+            width: 42px;
+            height: 42px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: klinSpin 0.75s linear infinite;
+        }
+        .loading-wheel-sm {
+            width: 20px;
+            height: 20px;
+            border: 2.5px solid #cbd5e1;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            display: inline-block;
+            vertical-align: middle;
+            animation: klinSpin 0.75s linear infinite;
+        }
+        .loading-text {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+        }
+        .loading-subtext {
+            font-size: 0.78rem;
+            color: #64748b;
+            margin: -0.45rem 0 0 0;
+        }
+        @keyframes klinSpin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
+    <!-- Global Loading Screen Overlay -->
+    <div id="global-loading-overlay" class="loading-overlay" aria-live="polite">
+        <div class="loading-card">
+            <div class="loading-wheel"></div>
+            <p id="global-loading-text" class="loading-text">Loading clinical records...</p>
+            <p id="global-loading-subtext" class="loading-subtext">Please wait a moment</p>
+        </div>
+    </div>
+
     <header>
         <nav>
             <div class="container nav-bar">
@@ -29,6 +98,28 @@
         </div>
     </footer>
 
+    <script>
+        function showLoadingOverlay(message = 'Loading clinical records...', subtext = 'Please wait a moment') {
+            const overlay = document.getElementById('global-loading-overlay');
+            const textEl = document.getElementById('global-loading-text');
+            const subEl = document.getElementById('global-loading-subtext');
+            if (textEl && message) textEl.textContent = message;
+            if (subEl && subtext !== undefined) subEl.textContent = subtext;
+            if (overlay) overlay.classList.add('active');
+        }
+
+        function hideLoadingOverlay() {
+            const overlay = document.getElementById('global-loading-overlay');
+            if (overlay) overlay.classList.remove('active');
+        }
+
+        window.addEventListener('pageshow', () => {
+            // Hide overlay if user navigates back via browser Back button
+            if (!window.__workspaceLoadingActive) {
+                hideLoadingOverlay();
+            }
+        });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

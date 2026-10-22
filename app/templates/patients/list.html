@@ -15,7 +15,7 @@
 
 <div id="create-form" style="display: none; margin-bottom: 1.5rem;" class="card">
     <h3>Create New Demo Patient</h3>
-    <form method="POST" action="/patients/">
+    <form method="POST" action="/patients/" onsubmit="showLoadingOverlay('Creating patient workspace...', 'Setting up clinical profile')">
         <div class="form-group">
             <label for="display_name">Synthetic / Demo Patient Label</label>
             <input type="text" id="display_name" name="display_name" required placeholder="e.g., Demo Patient 01 - John Doe (Synthetic)">
@@ -41,7 +41,7 @@
             </thead>
             <tbody>
                 {% for patient in patients %}
-                <tr class="patient-row" onclick="window.location='/patients/{{ patient.id }}'">
+                <tr class="patient-row" onclick="openPatientWorkspace('{{ patient.id }}')">
                     <td>
                         <div class="patient-name-cell">
                             <div class="patient-avatar">{{ patient.display_name[0].upper() }}</div>
@@ -64,7 +64,7 @@
                     </td>
                     <td onclick="event.stopPropagation()">
                         <div style="display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center;">
-                            <a href="/patients/{{ patient.id }}" class="btn-primary btn-sm">Open Workspace</a>
+                            <a href="/patients/{{ patient.id }}" class="btn-primary btn-sm" onclick="showLoadingOverlay('Opening patient workspace...', 'Loading extracted clinical records')">Open Workspace</a>
                             <button type="button" class="btn-sm btn-danger" onclick="deletePatient('{{ patient.id }}', '{{ patient.display_name| e }}')">Delete</button>
                         </div>
                     </td>
@@ -120,13 +120,22 @@ function showCreateForm() {
 function hideCreateForm() {
     document.getElementById('create-form').style.display = 'none';
 }
+function openPatientWorkspace(patientId) {
+    showLoadingOverlay('Opening patient workspace...', 'Loading extracted clinical records');
+    window.location = `/patients/${patientId}`;
+}
 async function deletePatient(patientId, name) {
     if (!confirm(`Delete demo patient "${name}" and all associated documents/facts?`)) return;
+    showLoadingOverlay('Deleting patient record...', 'Removing documents and clinical facts');
     try {
         const res = await fetch(`/patients/${patientId}`, { method: 'DELETE' });
         if (res.ok) window.location.reload();
-        else alert('Failed to delete patient');
+        else {
+            hideLoadingOverlay();
+            alert('Failed to delete patient');
+        }
     } catch (e) {
+        hideLoadingOverlay();
         alert('Error: ' + e.message);
     }
 }

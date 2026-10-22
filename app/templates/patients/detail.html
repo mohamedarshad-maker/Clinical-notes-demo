@@ -507,7 +507,7 @@
 <div class="page-header">
     <div>
         <div style="margin-bottom: 0.2rem;">
-            <a href="/patients" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 500;">&larr; Back to Patients</a>
+            <a href="/patients" onclick="showLoadingOverlay('Returning to patient list...', '')" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 500;">&larr; Back to Patients</a>
         </div>
         <h2>{{ patient.display_name }}</h2>
         <span style="color: var(--text-secondary); font-size: 0.8rem;">Patient ID: <code>{{ patient.id }}</code></span>
@@ -516,7 +516,7 @@
         <button type="button" class="btn-secondary" onclick="openAddFactModal(11)">+ Add Clinical Fact</button>
         <button type="button" class="btn-secondary" onclick="downloadFactsCsv()">Export Facts CSV</button>
         <a href="/export/summary/{{ patient.id }}" class="btn-secondary">Export Summary CSV</a>
-        <button type="button" class="btn-secondary" onclick="loadPatientWorkspace()">Refresh</button>
+        <button type="button" class="btn-secondary" onclick="loadPatientWorkspace(true)">Refresh</button>
         <button type="button" class="btn-primary save-profile-btn" onclick="savePatientProfile()">Save Profile</button>
     </div>
 </div>
@@ -570,7 +570,9 @@
     <div id="upload-status" style="margin-bottom: 0.5rem; font-size: 0.85rem;"></div>
 
     <div id="documents-list">
-        <p style="color: var(--text-secondary);">Loading documents...</p>
+        <div style="display: flex; align-items: center; gap: 0.55rem; color: var(--text-secondary); font-size: 0.88rem; padding: 0.4rem 0;">
+            <span class="loading-wheel-sm"></span> Loading documents...
+        </div>
     </div>
 
     <!-- Pipeline Execution Bar -->
@@ -599,7 +601,9 @@
         <button type="button" class="btn-sm btn-secondary" onclick="regenerateSummary()">Regenerate Summary</button>
     </div>
     <div id="summary-container">
-        <p style="color: var(--text-secondary); font-size: 0.88rem;">No patient summary generated yet. Run analysis to generate a grounded summary.</p>
+        <div style="display: flex; align-items: center; gap: 0.55rem; color: var(--text-secondary); font-size: 0.88rem; padding: 0.4rem 0;">
+            <span class="loading-wheel-sm"></span> Loading patient summary...
+        </div>
     </div>
 </div>
 
@@ -653,7 +657,9 @@
     </div>
 
     <div id="icd-review-container">
-        <p style="color: var(--text-secondary); font-size: 0.88rem;">No diagnosis facts available yet.</p>
+        <div style="display: flex; align-items: center; gap: 0.55rem; color: var(--text-secondary); font-size: 0.88rem; padding: 0.4rem 0;">
+            <span class="loading-wheel-sm"></span> Loading diagnoses &amp; ICD-11 mappings...
+        </div>
     </div>
 </div>
 
@@ -678,7 +684,9 @@
         </div>
     </div>
     <div id="categories-container">
-        <p style="color: var(--text-secondary);">Loading clinical categories...</p>
+        <div style="display: flex; align-items: center; gap: 0.55rem; color: var(--text-secondary); font-size: 0.88rem; padding: 0.4rem 0;">
+            <span class="loading-wheel-sm"></span> Loading 19 clinical categories...
+        </div>
     </div>
 </div>
 
@@ -891,11 +899,16 @@ function applyProfileData(data, saveToCache = true) {
     renderIcdReview();
     renderCategories();
     populateCategoryDropdown();
+
+    window.__workspaceLoadingActive = false;
+    if (typeof hideLoadingOverlay === 'function') {
+        hideLoadingOverlay();
+    }
 }
 
-async function loadPatientWorkspace() {
+async function loadPatientWorkspace(forceOverlay = false) {
     // 1. Instant render from browser sessionStorage cache if available (Stale-While-Revalidate)
-    if (!profileData) {
+    if (!profileData && !forceOverlay) {
         try {
             const cachedRaw = sessionStorage.getItem(PROFILE_CACHE_KEY);
             if (cachedRaw) {
@@ -907,6 +920,15 @@ async function loadPatientWorkspace() {
         } catch (e) {
             // Ignore cache read error
         }
+    }
+
+    // Show loading wheel overlay if no cached data is rendered yet or user clicked Refresh
+    if ((!profileData || forceOverlay) && typeof showLoadingOverlay === 'function') {
+        window.__workspaceLoadingActive = true;
+        showLoadingOverlay(
+            forceOverlay ? 'Refreshing patient workspace...' : 'Loading patient clinical workspace...',
+            'Fetching documents, summary, ICD-11 codes, and 19 clinical categories'
+        );
     }
 
     // 2. Fetch fresh data from server and update UI + cache
@@ -921,6 +943,10 @@ async function loadPatientWorkspace() {
         applyProfileData(freshData, true);
     } catch (error) {
         console.error('Failed to load workspace:', error);
+        window.__workspaceLoadingActive = false;
+        if (typeof hideLoadingOverlay === 'function') {
+            hideLoadingOverlay();
+        }
         if (!profileData) {
             const errMsg = `<p class="error">Failed to load patient workspace (${escapeHtml(error.message)}). Please refresh the page.</p>`;
             const docEl = document.getElementById('documents-list');
