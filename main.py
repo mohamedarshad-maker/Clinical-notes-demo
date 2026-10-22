@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 import uvicorn
 
 from app.config import settings
@@ -40,6 +41,9 @@ app = FastAPI(
     description="Extract structured clinical data from documents with WHO ICD-11 mapping",
     lifespan=lifespan
 )
+
+# GZip compression for large clinical JSON payloads and HTML templates
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS middleware
 app.add_middleware(
@@ -104,7 +108,10 @@ async def security_and_csrf_middleware(request: Request, call_next):
                     status_code=403
                 )
 
-    return await call_next(request)
+    response = await call_next(request)
+    if path.startswith("/static"):
+        response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
 
 
 # Static files and templates

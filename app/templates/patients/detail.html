@@ -864,7 +864,52 @@ function toggleUploadPanel() {
     panel.style.display = panel.style.display === 'none' ? 'grid' : 'none';
 }
 
+const PROFILE_CACHE_KEY = `clinical_profile_${patientId}`;
+
+function applyProfileData(data, saveToCache = true) {
+    profileData = data;
+    if (saveToCache && data) {
+        try {
+            sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
+        } catch (e) {
+            // Ignore sessionStorage quota errors
+        }
+    }
+
+    // Build fast lookup map of all facts by ID
+    factLookupById = {};
+    for (const cat of (profileData.categories || [])) {
+        for (const f of (cat.facts || [])) {
+            factLookupById[f.id] = f;
+        }
+    }
+
+    updateStatsBar();
+    renderDocuments();
+    renderJobStatus(profileData.job);
+    renderSummary();
+    renderIcdReview();
+    renderCategories();
+    populateCategoryDropdown();
+}
+
 async function loadPatientWorkspace() {
+    // 1. Instant render from browser sessionStorage cache if available (Stale-While-Revalidate)
+    if (!profileData) {
+        try {
+            const cachedRaw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+            if (cachedRaw) {
+                const cachedData = JSON.parse(cachedRaw);
+                if (cachedData && cachedData.patient && cachedData.patient.id === patientId) {
+                    applyProfileData(cachedData, false);
+                }
+            }
+        } catch (e) {
+            // Ignore cache read error
+        }
+    }
+
+    // 2. Fetch fresh data from server and update UI + cache
     try {
         const response = await fetch(`/api/patients/${patientId}/profile`, {
             credentials: 'same-origin'
@@ -872,30 +917,17 @@ async function loadPatientWorkspace() {
         if (!response.ok) {
             throw new Error(`HTTP ${response.status} (${response.statusText})`);
         }
-        profileData = await response.json();
-
-        // Build fast lookup map of all facts by ID
-        factLookupById = {};
-        for (const cat of (profileData.categories || [])) {
-            for (const f of (cat.facts || [])) {
-                factLookupById[f.id] = f;
-            }
-        }
-
-        updateStatsBar();
-        renderDocuments();
-        renderJobStatus(profileData.job);
-        renderSummary();
-        renderIcdReview();
-        renderCategories();
-        populateCategoryDropdown();
+        const freshData = await response.json();
+        applyProfileData(freshData, true);
     } catch (error) {
         console.error('Failed to load workspace:', error);
-        const errMsg = `<p class="error">Failed to load patient workspace (${escapeHtml(error.message)}). Please refresh the page.</p>`;
-        const docEl = document.getElementById('documents-list');
-        const catEl = document.getElementById('categories-container');
-        if (docEl) docEl.innerHTML = errMsg;
-        if (catEl) catEl.innerHTML = errMsg;
+        if (!profileData) {
+            const errMsg = `<p class="error">Failed to load patient workspace (${escapeHtml(error.message)}). Please refresh the page.</p>`;
+            const docEl = document.getElementById('documents-list');
+            const catEl = document.getElementById('categories-container');
+            if (docEl) docEl.innerHTML = errMsg;
+            if (catEl) catEl.innerHTML = errMsg;
+        }
     }
 }
 
@@ -1980,6 +2012,29 @@ async function pollStatus() {
 async function quickReviewEntry(factIds, reviewStatus) {
     const ids = Array.isArray(factIds) ? factIds : [factIds];
     if (ids.length === 0) return;
+
+    // Optimistic UI update so review badges change immediately (0ms)
+    if (profileData) {
+        const idSet = new Set(ids);
+        for (const id of ids) {
+            if (factLookupById[id]) {
+                factLookupById[id].review_status = reviewStatus;
+            }
+        }
+        if (profileData.icd_mappings) {
+            for (const item of profileData.icd_mappings) {
+                if (idSet.has(item.fact_id)) {
+                    item.review_status = reviewStatus;
+                    if (reviewStatus === 'rejected') {
+                        item.is_eligible_for_icd = false;
+                        item.ineligible_reason = 'Rejected fact';
+                    }
+                }
+            }
+        }
+        applyProfileData(profileData, true);
+    }
+
     try {
         await fetch('/facts/batch-review', {
             method: 'POST',
