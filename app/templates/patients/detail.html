@@ -74,18 +74,81 @@
     /* Action button wrapper inside td */
     .cell-actions {
         display: flex;
-        gap: 0.35rem;
+        gap: 0.3rem;
         align-items: center;
         justify-content: flex-end;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
+        row-gap: 0.3rem;
+    }
+    .cell-actions .btn-sm {
+        padding: 0.24rem 0.5rem;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+    }
+
+    /* ICD-11 Review Table Layout & Overflow Prevention */
+    #icd-review-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .table-icd {
+        table-layout: fixed;
+        width: 100%;
+    }
+    .table-icd th,
+    .table-icd td {
+        padding: 0.65rem 0.55rem;
+        vertical-align: middle;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        overflow: hidden;
+    }
+    .icd-candidate-select {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding: 0.32rem 0.5rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 5px;
+        font-size: 0.8rem;
+        background-color: #fff;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
+        cursor: pointer;
+        box-sizing: border-box;
+    }
+    .icd-candidate-select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+    }
+    .icd-edit-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 0.85rem;
+    }
+    .icd-edit-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.65rem 0.75rem;
+    }
+    .icd-edit-card-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--navy);
+        margin-bottom: 0.4rem;
     }
 
     /* Category Cards */
     .category-box {
         border: 1px solid var(--border);
         border-radius: 8px;
-        margin-bottom: 1rem;
+        margin-bottom: 0.75rem;
         background: #fff;
         overflow: hidden;
     }
@@ -96,6 +159,16 @@
         justify-content: space-between;
         align-items: center;
         border-bottom: 1px solid var(--border);
+        transition: background-color 0.15s;
+    }
+    .category-header:hover {
+        background: #f1f5f9;
+    }
+    .category-box.collapsed .category-header {
+        border-bottom: none;
+    }
+    .category-box.collapsed .category-body {
+        display: none;
     }
     .category-title {
         font-weight: 600;
@@ -104,6 +177,37 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        cursor: pointer;
+        user-select: none;
+        flex: 1;
+    }
+    .category-toggle-arrow {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 5px;
+        background: #e2e8f0;
+        color: var(--navy);
+        transition: transform 0.2s ease, background-color 0.15s;
+        transform: rotate(90deg);
+        flex-shrink: 0;
+    }
+    .category-toggle-arrow svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        stroke-width: 2.5;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    .category-title:hover .category-toggle-arrow {
+        background: #cbd5e1;
+    }
+    .category-box.collapsed .category-toggle-arrow {
+        transform: rotate(0deg);
     }
     .category-body {
         padding: 0;
@@ -183,7 +287,127 @@
         white-space: nowrap;
     }
 
-    /* Empty categories compact grid */
+    /* Subfield Dropdown & Missing Information Flags */
+    .subfield-select {
+        width: 100%;
+        max-width: 310px;
+        padding: 0.35rem 0.55rem;
+        font-size: 0.8rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background-color: #f8fafc;
+        color: var(--navy);
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .subfield-select:hover, .subfield-select:focus {
+        border-color: var(--primary);
+        background-color: #fff;
+        outline: none;
+    }
+    .subfield-details {
+        margin-top: 0.35rem;
+        font-size: 0.78rem;
+    }
+    .subfield-details summary {
+        cursor: pointer;
+        color: var(--primary);
+        font-weight: 500;
+        user-select: none;
+        font-size: 0.76rem;
+    }
+    .subfield-mini-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0.3rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    .subfield-mini-table td {
+        padding: 0.25rem 0.5rem !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        font-size: 0.76rem;
+    }
+    .subfield-mini-table tr:last-child td {
+        border-bottom: none !important;
+    }
+    .missing-flag-box {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+    .flag-badge-missing {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        background: #fffbeb;
+        color: #b45309;
+        border: 1px solid #fcd34d;
+        border-radius: 5px;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.74rem;
+        font-weight: 600;
+        width: fit-content;
+    }
+    .flag-badge-cat-missing {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        background: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+        border-radius: 5px;
+        padding: 0.18rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        width: fit-content;
+    }
+    .missing-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    .missing-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        background: #fff1f2;
+        color: #be123c;
+        border: 1px dashed #fda4af;
+        border-radius: 4px;
+        padding: 0.1rem 0.4rem;
+        font-size: 0.72rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .missing-pill:hover {
+        background: #ffe4e6;
+        border-color: #e11d48;
+    }
+    .missing-summary-banner {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-left: 4px solid #f59e0b;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.85rem;
+        font-size: 0.82rem;
+    }
+    .grounding-guard-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+        border-radius: 999px;
+        padding: 0.15rem 0.6rem;
+        font-size: 0.74rem;
+        font-weight: 600;
+    }
     .empty-cats-bar {
         margin-top: 1rem;
         padding: 0.85rem 1rem;
@@ -293,6 +517,7 @@
         <button type="button" class="btn-secondary" onclick="downloadFactsCsv()">Export Facts CSV</button>
         <a href="/export/summary/{{ patient.id }}" class="btn-secondary">Export Summary CSV</a>
         <button type="button" class="btn-secondary" onclick="loadPatientWorkspace()">Refresh</button>
+        <button type="button" class="btn-primary save-profile-btn" onclick="savePatientProfile()">Save Profile</button>
     </div>
 </div>
 
@@ -366,8 +591,11 @@
 
 <!-- 2. Grounded Patient Summary -->
 <div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem;">
-        <h3 style="margin-bottom: 0;">2. Grounded Patient Summary</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <div>
+            <h3 style="margin-bottom: 0.1rem;">2. Grounded Patient Summary</h3>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Every statement is strictly grounded in extracted active facts</span>
+        </div>
         <button type="button" class="btn-sm btn-secondary" onclick="regenerateSummary()">Regenerate Summary</button>
     </div>
     <div id="summary-container">
@@ -380,10 +608,50 @@
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
         <div>
             <h3 style="margin-bottom: 0.1rem;">3. Diagnoses &amp; WHO ICD-11 MMS Coding</h3>
-            <span style="font-size: 0.8rem; color: var(--text-secondary);">Active patient diagnoses (Category 11) require human confirmation before export</span>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Active patient diagnoses eligible for WHO ICD-11 MMS candidate selection or manual coding</span>
         </div>
-        <button type="button" id="accept-all-icd-btn" class="btn-sm btn-success" style="display: none;" onclick="acceptAllIcd()">Accept All</button>
+        <div style="display: flex; gap: 0.45rem; align-items: center;">
+            <button type="button" id="accept-all-icd-btn" class="btn-sm btn-success" style="display: none;" onclick="acceptAllIcd()">Accept All</button>
+            <button type="button" class="btn-sm btn-secondary" onclick="toggleNewDiagnosisPanel()">+ Add Diagnosis (Manual Entry)</button>
+        </div>
     </div>
+
+    <!-- Collapsible Manual Entry Form for New Diagnosis Record -->
+    <div id="new-diagnosis-panel" style="display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 7px; padding: 0.85rem 1rem; margin-bottom: 0.85rem;">
+        <div style="font-weight: 600; font-size: 0.86rem; color: var(--navy); margin-bottom: 0.55rem;">Add New Diagnosis &amp; ICD-11 Record</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.6rem; align-items: end;">
+            <div>
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.2rem;">Diagnosis Name *</label>
+                <input type="text" id="new-diag-name" placeholder="e.g., Essential hypertension" style="width: 100%; padding: 0.35rem 0.55rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 5px;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.2rem;">Context</label>
+                <select id="new-diag-context" style="width: 100%; padding: 0.35rem 0.55rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 5px;">
+                    <option value="present|current|patient">Active &middot; Patient</option>
+                    <option value="present|historical|patient">Historical &middot; Patient</option>
+                    <option value="uncertain|current|patient">Uncertain &middot; Patient</option>
+                    <option value="negated|current|patient">Negated (Excluded)</option>
+                    <option value="present|current|family">Family History (Excluded)</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.2rem;">Manual ICD-11 Code (Optional)</label>
+                <input type="text" id="new-diag-icd-code" placeholder="e.g., BA00.Z (or leave blank for WHO auto-search)" style="width: 100%; padding: 0.35rem 0.55rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 5px;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.2rem;">Manual ICD-11 Title (Optional)</label>
+                <input type="text" id="new-diag-icd-title" placeholder="e.g., Essential hypertension, unspecified" style="width: 100%; padding: 0.35rem 0.55rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 5px;">
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.65rem; flex-wrap: wrap; gap: 0.5rem;">
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Tip: Leave Manual ICD-11 Code blank to automatically search WHO ICD-11 suggestions.</span>
+            <div style="display: flex; gap: 0.4rem;">
+                <button type="button" class="btn-sm btn-secondary" onclick="toggleNewDiagnosisPanel(false)">Cancel</button>
+                <button type="button" id="save-new-diag-btn" class="btn-sm btn-primary" onclick="submitNewDiagnosisRecord()">Save Diagnosis Record</button>
+            </div>
+        </div>
+    </div>
+
     <div id="icd-review-container">
         <p style="color: var(--text-secondary); font-size: 0.88rem;">No diagnosis facts available yet.</p>
     </div>
@@ -395,15 +663,17 @@
         <div>
             <h3 style="margin-bottom: 0.15rem;">4. Extracted Clinical Categories</h3>
             <p style="font-size: 0.82rem; color: var(--text-secondary);">
-                Related subfields are grouped into single clinical entries. Click any quote to inspect its source page &amp; block, or click any subfield chip to edit it.
+                Click the <strong>&gt;</strong> arrow on any of the 19 category headers to expand or minimize it.
             </p>
         </div>
-        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; gap: 0.55rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn-sm btn-secondary" onclick="toggleAllCategories(true)">Expand All (19)</button>
+            <button type="button" class="btn-sm btn-secondary" onclick="toggleAllCategories(false)">Minimize All (19)</button>
             <button type="button" id="accept-all-facts-btn" class="btn-sm btn-success" style="display: none;" onclick="acceptAllFacts()">Accept All</button>
-            <input type="text" id="fact-filter-input" placeholder="Search clinical entries..." oninput="renderCategories()" style="padding: 0.38rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; width: 220px;">
+            <input type="text" id="fact-filter-input" placeholder="Search clinical entries..." oninput="renderCategories()" style="padding: 0.38rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; width: 210px;">
             <label style="font-size: 0.82rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
-                <input type="checkbox" id="show-empty-categories" onchange="renderCategories()">
-                Show Empty Categories
+                <input type="checkbox" id="show-empty-categories" checked onchange="renderCategories()">
+                Show Flagged Missing Categories
             </label>
         </div>
     </div>
@@ -439,6 +709,18 @@
     </div>
 </div>
 
+<!-- Save Profile Action Bar -->
+<div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; background: #f8fafc;">
+    <div>
+        <strong style="color: var(--navy); font-size: 0.95rem;">Save Patient Profile</strong>
+        <p style="margin: 0.15rem 0 0 0; font-size: 0.82rem; color: var(--text-secondary);">Save all reviewed clinical categories, WHO ICD-11 decisions, and return to the Patient List.</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <a href="/patients" class="btn-secondary">Cancel</a>
+        <button type="button" class="btn-primary save-profile-btn" onclick="savePatientProfile()">Save Profile</button>
+    </div>
+</div>
+
 <!-- Document Pages / Evidence Inspector Modal -->
 <div id="doc-modal" class="modal-backdrop" onclick="if(event.target===this) closeDocModal()">
     <div class="modal-content">
@@ -459,6 +741,7 @@
         </div>
         <form id="fact-form" onsubmit="submitFactModal(event)">
             <input type="hidden" id="modal-fact-id">
+            <input type="hidden" id="modal-entry-id">
 
             <!-- When editing an entry with multiple subfields, allow switching which subfield to edit -->
             <div class="form-group" id="modal-subfield-switcher-group" style="display: none; background: #f8fafc; padding: 0.65rem 0.75rem; border-radius: 6px; border: 1px solid var(--border);">
@@ -468,11 +751,14 @@
 
             <div class="form-group" id="modal-category-group">
                 <label>Category</label>
-                <select id="modal-category-number"></select>
+                <select id="modal-category-number" onchange="populateModalFieldDropdown(this.value)"></select>
             </div>
             <div class="form-group" id="modal-field-group">
-                <label>Field Name</label>
-                <input type="text" id="modal-field-name" placeholder="e.g., diagnosis, medication_name, bp" required>
+                <label>Subfield Name</label>
+                <div style="display: flex; gap: 0.4rem;">
+                    <select id="modal-field-select" onchange="if(this.value) document.getElementById('modal-field-name').value=this.value;" style="flex: 1;"></select>
+                    <input type="text" id="modal-field-name" placeholder="e.g., diagnosis, age" required style="flex: 1;">
+                </div>
             </div>
             <div class="grid-2">
                 <div class="form-group">
@@ -760,6 +1046,127 @@ function renderJobStatus(job) {
     }
 }
 
+function buildSubfieldsAndMissingCell(catNum, expectedSubfields, entryFacts, entryId) {
+    const schemaFields = Array.isArray(expectedSubfields) && expectedSubfields.length > 0 ? expectedSubfields : [];
+    const byField = {};
+    for (const f of (entryFacts || [])) {
+        if (f.review_status === 'rejected') continue;
+        byField[f.field_name] = f;
+    }
+
+    const documentedFields = [];
+    const missingFields = [];
+
+    for (const sf of schemaFields) {
+        if (byField[sf] && String(byField[sf].value || '').trim() !== '') {
+            documentedFields.push({ field_name: sf, fact: byField[sf] });
+        } else {
+            missingFields.push(sf);
+        }
+    }
+
+    // Include any extra documented fields not in schemaFields
+    for (const f of (entryFacts || [])) {
+        if (f.review_status === 'rejected') continue;
+        if (!schemaFields.includes(f.field_name)) {
+            documentedFields.push({ field_name: f.field_name, fact: f });
+        }
+    }
+
+    const totalExpected = schemaFields.length || documentedFields.length;
+    const allFactIds = (entryFacts || []).map(f => f.id);
+    const encodedAllIds = JSON.stringify(allFactIds).replace(/"/g, '&quot;');
+    const safeEntryId = escapeHtml(entryId || (entryFacts[0] && (entryFacts[0].entry_id || entryFacts[0].id)) || '');
+
+    // Build <select> dropdown for subfields
+    let selectHtml = `<div class="subfield-dropdown-wrap">
+        <select class="subfield-select" onchange="handleSubfieldDropdownChange(this, ${Number(catNum)}, '${safeEntryId}', ${encodedAllIds})">
+            <option value="">Subfields (${documentedFields.length}/${totalExpected} available, ${missingFields.length} missing) &mdash; Select to inspect/fill...</option>`;
+
+    if (documentedFields.length > 0) {
+        selectHtml += `<optgroup label="&check; Available in Uploaded/Pasted Text (${documentedFields.length})">`;
+        for (const item of documentedFields) {
+            const unitStr = item.fact.unit ? ` ${item.fact.unit}` : '';
+            selectHtml += `<option value="edit:${escapeHtml(item.fact.id)}">&check; ${escapeHtml(formatFieldName(item.field_name))}: ${escapeHtml(item.fact.value)}${escapeHtml(unitStr)}</option>`;
+        }
+        selectHtml += `</optgroup>`;
+    }
+
+    if (missingFields.length > 0) {
+        selectHtml += `<optgroup label="&#9873; Flagged Missing / Not in Text (${missingFields.length})">`;
+        for (const mf of missingFields) {
+            selectHtml += `<option value="missing:${escapeHtml(mf)}">&#9873; ${escapeHtml(formatFieldName(mf))}: [Not available in text &mdash; Click to enter manually]</option>`;
+        }
+        selectHtml += `</optgroup>`;
+    }
+
+    selectHtml += `</select>`;
+
+    // Also include a collapsible details table so reviewer can view all subfields in tabular form
+    selectHtml += `<details class="subfield-details">
+        <summary>View Subfield Table (${documentedFields.length} documented, ${missingFields.length} missing)</summary>
+        <table class="subfield-mini-table">
+            <thead>
+                <tr>
+                    <th>Subfield</th>
+                    <th>Extracted Value / Status</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    for (const item of documentedFields) {
+        const unitStr = item.fact.unit ? ` ${escapeHtml(item.fact.unit)}` : '';
+        selectHtml += `<tr>
+            <td class="sf-name">${escapeHtml(formatFieldName(item.field_name))}</td>
+            <td class="sf-val-present">&check; ${escapeHtml(item.fact.value)}${unitStr}</td>
+        </tr>`;
+    }
+    for (const mf of missingFields) {
+        selectHtml += `<tr>
+            <td class="sf-name">${escapeHtml(formatFieldName(mf))}</td>
+            <td class="sf-val-missing">&#9873; Not available in uploaded/pasted text</td>
+        </tr>`;
+    }
+
+    selectHtml += `</tbody></table></details></div>`;
+
+    // Build Missing Information Flag column HTML
+    let missingFlagHtml = '';
+    if (missingFields.length === 0) {
+        missingFlagHtml = `<span class="badge badge-success">&check; All ${totalExpected} Subfields Available</span>`;
+    } else {
+        const pills = missingFields.map(mf =>
+            `<span class="missing-pill" title="Flagged: '${escapeHtml(formatFieldName(mf))}' was not found in the uploaded/pasted text. Click to add manually." onclick="openAddMissingSubfieldModal(${Number(catNum)}, '${escapeHtml(mf)}', '${safeEntryId}')">&#9873; ${escapeHtml(formatFieldName(mf))}</span>`
+        ).join('');
+        missingFlagHtml = `<div class="missing-flag-box">
+            <div class="missing-flag-title">&#9873; ${missingFields.length} Missing Subfield${missingFields.length === 1 ? '' : 's'} (Not in Text)</div>
+            <div class="missing-pills">${pills}</div>
+        </div>`;
+    }
+
+    return {
+        dropdownHtml: selectHtml,
+        missingFlagHtml: missingFlagHtml,
+        missingCount: missingFields.length,
+        documentedCount: documentedFields.length,
+        missingFields: missingFields,
+        documentedFields: documentedFields
+    };
+}
+
+function handleSubfieldDropdownChange(selectEl, catNum, entryId, allFactIds) {
+    const val = selectEl.value;
+    selectEl.value = '';
+    if (!val) return;
+    if (val.startsWith('edit:')) {
+        const factId = val.slice(5);
+        openEditEntryModal(factId, allFactIds);
+    } else if (val.startsWith('missing:')) {
+        const fieldName = val.slice(8);
+        openAddMissingSubfieldModal(catNum, fieldName, entryId);
+    }
+}
+
 function renderSummary() {
     const container = document.getElementById('summary-container');
     const summary = profileData && profileData.summary;
@@ -786,9 +1193,43 @@ function renderSummary() {
     }
 }
 
+const collapsedCategories = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+function toggleCategoryBox(catNum) {
+    const n = Number(catNum);
+    const box = document.getElementById(`category-box-${n}`);
+    if (!box) return;
+    const isNowCollapsed = box.classList.toggle('collapsed');
+    if (isNowCollapsed) {
+        collapsedCategories.add(n);
+    } else {
+        collapsedCategories.delete(n);
+    }
+}
+
+function toggleAllCategories(expand) {
+    const boxes = document.querySelectorAll('.category-box');
+    boxes.forEach(box => {
+        const catNum = Number(box.getAttribute('data-cat-num'));
+        if (expand) {
+            box.classList.remove('collapsed');
+            if (catNum) collapsedCategories.delete(catNum);
+        } else {
+            box.classList.add('collapsed');
+            if (catNum) collapsedCategories.add(catNum);
+        }
+    });
+}
+
 function highlightFact(factId) {
     const row = document.getElementById(`fact-row-${factId}`) || document.querySelector(`[data-fact-ids*="${factId}"]`);
     if (row) {
+        const catBox = row.closest('.category-box');
+        if (catBox && catBox.classList.contains('collapsed')) {
+            catBox.classList.remove('collapsed');
+            const catNum = Number(catBox.getAttribute('data-cat-num'));
+            if (catNum) collapsedCategories.delete(catNum);
+        }
         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
         row.classList.add('fact-highlight');
         setTimeout(() => row.classList.remove('fact-highlight'), 2500);
@@ -823,7 +1264,15 @@ function renderIcdReview() {
         }
     }
 
-    let html = `<table class="table-clean">
+    let html = `<table class="table-clean table-icd">
+        <colgroup>
+            <col style="width: 15%;">
+            <col style="width: 11%;">
+            <col style="width: 20%;">
+            <col style="width: 10%;">
+            <col style="width: 21%;">
+            <col style="width: 23%;">
+        </colgroup>
         <thead>
             <tr>
                 <th>Diagnosis</th>
@@ -831,6 +1280,7 @@ function renderIcdReview() {
                 <th>Selected ICD-11 Code</th>
                 <th>Status</th>
                 <th>Candidate Selection &amp; WHO Search</th>
+                <th style="text-align: right;">Actions</th>
             </tr>
         </thead>
         <tbody>`;
@@ -845,10 +1295,15 @@ function renderIcdReview() {
 
         let statusBadge = '<span class="badge badge-muted">Not Coded</span>';
         if (!eligible) {
-            statusBadge = `<span class="badge badge-muted">${escapeHtml(item.ineligible_reason || 'Excluded')}</span>`;
+            const reasonTitle = item.ineligible_reason || 'Excluded from ICD coding';
+            if (item.review_status === 'rejected') {
+                statusBadge = `<span class="badge badge-danger" title="${escapeHtml(reasonTitle)}">Rejected</span>`;
+            } else {
+                statusBadge = `<span class="badge badge-muted" title="${escapeHtml(reasonTitle)}">Excluded</span>`;
+            }
         } else if (dec) {
             if (dec.needs_review) {
-                statusBadge = '<span class="badge badge-warning">Needs Re-Review</span>';
+                statusBadge = '<span class="badge badge-warning">Needs Review</span>';
             } else if (dec.mapping_status === 'accepted') {
                 statusBadge = '<span class="badge badge-success">Accepted</span>';
             } else if (dec.mapping_status === 'rejected') {
@@ -862,8 +1317,8 @@ function renderIcdReview() {
 
         let currentCodeHtml = '<span style="color: var(--text-secondary); font-size: 0.82rem;">None selected</span>';
         if (dec && dec.selected_code) {
-            currentCodeHtml = `<div><strong style="color: var(--navy);"><code>${escapeHtml(dec.selected_code)}</code></strong> &mdash; ${escapeHtml(dec.selected_title || '')}</div>
-                <div style="font-size: 0.74rem; color: var(--text-secondary);">ICD-11 MMS (${escapeHtml(dec.icd_release || '2026-01')})</div>`;
+            currentCodeHtml = `<div style="line-height: 1.35;"><strong style="color: var(--navy);"><code>${escapeHtml(dec.selected_code)}</code></strong> &mdash; ${escapeHtml(dec.selected_title || '')}</div>
+                <div style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 0.15rem;">ICD-11 MMS (${escapeHtml(dec.icd_release || '2026-01')})</div>`;
         }
 
         let candidateOptions = '';
@@ -873,26 +1328,95 @@ function renderIcdReview() {
                 ${escapeHtml(cand.mms_code)} - ${escapeHtml(cand.mms_title)}
             </option>`;
         }
+        if (!candidateOptions) {
+            candidateOptions = `<option value="">-- No WHO suggestions yet --</option>`;
+        }
+        candidateOptions += `<option value="__manual__">+ Manual Entry (Custom Code &amp; Title)...</option>`;
+
+        const curAssertion = item.assertion || 'present';
+        const curTemporality = item.temporality || 'current';
+        const curExperiencer = item.experiencer || 'patient';
+        const curContextKey = `${curAssertion}|${curTemporality}|${curExperiencer}`;
+        const contextOptions = [
+            { val: 'present|current|patient', label: 'Active · Patient' },
+            { val: 'present|historical|patient', label: 'Historical · Patient' },
+            { val: 'uncertain|current|patient', label: 'Uncertain · Patient' },
+            { val: 'uncertain|historical|patient', label: 'Uncertain · Historical · Patient' },
+            { val: 'negated|current|patient', label: 'Negated (Excluded)' },
+            { val: 'present|current|family', label: 'Family History (Excluded)' }
+        ];
+        let contextSelectOptions = contextOptions.map(opt =>
+            `<option value="${opt.val}" ${opt.val === curContextKey ? 'selected' : ''}>${escapeHtml(opt.label)}</option>`
+        ).join('');
+        if (!contextOptions.some(opt => opt.val === curContextKey)) {
+            contextSelectOptions = `<option value="${escapeHtml(curContextKey)}" selected>${escapeHtml(curAssertion)} · ${escapeHtml(curTemporality)} · ${escapeHtml(curExperiencer)}</option>` + contextSelectOptions;
+        }
 
         html += `<tr>
             <td><strong style="color: var(--navy);">${escapeHtml(item.diagnosis)}</strong></td>
-            <td>${renderContextBadges(item)}</td>
+            <td style="cursor: pointer;" onclick="toggleIcdEditPanel('${item.fact_id}')" title="Click to edit Context">${renderContextBadges(item)}</td>
             <td>${currentCodeHtml}</td>
             <td>${statusBadge}</td>
             <td>
                 ${eligible ? `
-                    <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.35rem;">
-                        <select id="icd-select-${item.fact_id}" onchange="const btn=document.getElementById('icd-accept-btn-${item.fact_id}'); if(btn) btn.style.display='inline-flex';" style="padding: 0.28rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.8rem; max-width: 260px;">
-                            ${candidateOptions || '<option value="">-- No candidates --</option>'}
-                        </select>
+                    <select id="icd-select-${item.fact_id}" class="icd-candidate-select" onchange="handleIcdDropdownChange('${item.fact_id}', this.value)">
+                        ${candidateOptions}
+                    </select>
+                ` : `<span style="font-size: 0.78rem; color: var(--text-secondary); display: block; line-height: 1.35;">${escapeHtml(item.ineligible_reason || 'Non-active or non-patient diagnosis excluded.')}</span>`}
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+                <div class="cell-actions">
+                    ${eligible ? `
                         <button type="button" id="icd-accept-btn-${item.fact_id}" class="btn-sm btn-success" style="${isAccepted ? 'display: none;' : ''}" onclick="submitIcdDecision('${item.fact_id}', 'accepted')">Accept</button>
-                        ${!isRejected ? `<button type="button" class="btn-sm btn-danger" onclick="submitIcdDecision('${item.fact_id}', 'rejected')">Reject</button>` : ''}
+                    ` : ''}
+                    <button type="button" class="btn-sm btn-secondary" onclick="toggleIcdEditPanel('${item.fact_id}')" title="Edit Diagnosis, Context, WHO Search, or Manual ICD-11 Code">Edit</button>
+                    ${eligible && !isRejected ? `
+                        <button type="button" class="btn-sm btn-warning" onclick="submitIcdDecision('${item.fact_id}', 'rejected')">Reject</button>
+                    ` : ''}
+                    <button type="button" class="btn-sm btn-danger" onclick="deleteFactEntry('${escapeHtml(item.fact_id)}')" title="Delete this diagnosis">Delete</button>
+                </div>
+            </td>
+        </tr>
+        <tr id="icd-edit-panel-${item.fact_id}" style="display: none; background: #f8fafc;">
+            <td colspan="6" style="padding: 0.85rem 1rem; border-bottom: 2px solid #cbd5e1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                    <strong style="font-size: 0.82rem; color: var(--navy);">Edit Diagnosis, Context &amp; ICD-11 Mapping &mdash; ${escapeHtml(item.diagnosis)}</strong>
+                    <button type="button" class="btn-sm btn-secondary" onclick="toggleIcdEditPanel('${item.fact_id}')">Close</button>
+                </div>
+                <div class="icd-edit-grid">
+                    <div class="icd-edit-card">
+                        <div class="icd-edit-card-title">1. Edit Diagnosis Name &amp; Context</div>
+                        <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                            <input type="text" id="icd-diag-name-${item.fact_id}" value="${escapeHtml(item.diagnosis)}" placeholder="Diagnosis name" style="padding: 0.32rem 0.55rem; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 5px; width: 100%;">
+                            <div style="display: flex; gap: 0.4rem; align-items: center;">
+                                <select id="icd-context-${item.fact_id}" style="padding: 0.32rem 0.55rem; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 5px; flex: 1; min-width: 0;">
+                                    ${contextSelectOptions}
+                                </select>
+                                <button type="button" class="btn-sm btn-secondary" onclick="saveIcdContext('${item.fact_id}')">Save Context</button>
+                            </div>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 0.35rem; align-items: center;">
-                        <input type="text" id="icd-query-${item.fact_id}" value="${escapeHtml((dec && dec.refined_query) || item.diagnosis)}" placeholder="Refine WHO search..." style="padding: 0.25rem 0.5rem; font-size: 0.78rem; border: 1px solid #cbd5e1; border-radius: 5px; width: 180px;">
-                        <button type="button" class="btn-sm btn-secondary" onclick="lookupIcd('${item.fact_id}')">Search ICD-11</button>
+                    <div class="icd-edit-card">
+                        <div class="icd-edit-card-title">2. Search WHO ICD-11 Suggestions</div>
+                        <div style="display: flex; gap: 0.4rem; align-items: center;">
+                            <input type="text" id="icd-query-${item.fact_id}" value="${escapeHtml((dec && dec.refined_query) || item.diagnosis)}" placeholder="Refine WHO search..." style="padding: 0.32rem 0.55rem; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 5px; flex: 1; min-width: 0;">
+                            <button type="button" class="btn-sm btn-secondary" onclick="lookupIcd('${item.fact_id}')">Search ICD-11</button>
+                        </div>
+                        <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.35rem;">Updates the candidate dropdown with live WHO ICD-11 MMS results.</div>
                     </div>
-                ` : '<span style="font-size: 0.8rem; color: var(--text-secondary);">Non-active or non-patient diagnosis excluded.</span>'}
+                    <div class="icd-edit-card">
+                        <div class="icd-edit-card-title">3. Or Manual ICD-11 Code Entry</div>
+                        <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                            <div style="display: flex; gap: 0.4rem; align-items: center;">
+                                <input type="text" id="icd-manual-code-${item.fact_id}" value="${escapeHtml((dec && dec.selected_code) || '')}" placeholder="Code (e.g. BA00.Z)" style="padding: 0.32rem 0.55rem; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 5px; width: 115px;">
+                                <input type="text" id="icd-manual-title-${item.fact_id}" value="${escapeHtml((dec && dec.selected_title) || item.diagnosis)}" placeholder="ICD-11 Title / Description" style="padding: 0.32rem 0.55rem; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 5px; flex: 1; min-width: 0;">
+                            </div>
+                            <div style="text-align: right;">
+                                <button type="button" class="btn-sm btn-primary" onclick="saveManualIcd('${item.fact_id}')">Save Manual Code</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </td>
         </tr>`;
     }
@@ -919,7 +1443,7 @@ function renderContextBadges(item) {
     }
 
     if (badges.length === 0) {
-        return `<span style="font-size: 0.78rem; color: var(--text-secondary);">Active &middot; Patient</span>`;
+        return `<span class="badge badge-success">Active &middot; Patient</span>`;
     }
     return `<div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">${badges.join('')}</div>`;
 }
@@ -987,6 +1511,7 @@ function renderCategories() {
     for (const cat of categories) {
         const catTitle = cat.display_name || cat.key || '';
         const allFacts = cat.facts || [];
+        const schemaFields = cat.subfields || [];
         const entryGroups = groupFactsByEntry(allFacts).filter(group => {
             if (!filterText) return true;
             if (catTitle.toLowerCase().includes(filterText)) return true;
@@ -1013,7 +1538,7 @@ function renderCategories() {
         }
 
         const availClass = catStatus === 'documented' ? 'badge-success' :
-                           catStatus === 'not_documented' ? 'badge-muted' :
+                           catStatus === 'not_documented' ? 'badge-danger' :
                            isHighlightedCat ? 'badge-danger' : 'badge-warning';
 
         const catUnreviewedFactIds = [];
@@ -1031,11 +1556,16 @@ function renderCategories() {
         }
         const encodedCatUnreviewedIds = JSON.stringify(catUnreviewedFactIds).replace(/"/g, '&quot;');
 
-        html += `<div class="category-box">
+        const isCollapsed = collapsedCategories.has(Number(cat.category_number));
+
+        html += `<div class="category-box ${isCollapsed ? 'collapsed' : ''}" id="category-box-${cat.category_number}" data-cat-num="${cat.category_number}">
             <div class="category-header">
-                <div class="category-title">
+                <div class="category-title" onclick="toggleCategoryBox(${cat.category_number})" title="Click to expand or minimize ${escapeHtml(catTitle)}">
+                    <span class="category-toggle-arrow">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </span>
                     <span>${cat.category_number}. ${escapeHtml(catTitle)}</span>
-                    <span class="badge ${availClass}">${escapeHtml(catStatus.replace(/_/g, ' '))}</span>
+                    ${entryGroups.length === 0 ? `<span class="flag-badge-cat-missing">&#9873; Flagged: Missing in Uploaded/Pasted Text</span>` : `<span class="badge ${availClass}">${escapeHtml(catStatus.replace(/_/g, ' '))}</span>`}
                     <span style="font-size: 0.78rem; font-weight: 400; color: var(--text-secondary);">(${entryGroups.length} ${entryGroups.length === 1 ? 'item' : 'items'})</span>
                 </div>
                 <div style="display: flex; gap: 0.4rem; align-items: center;">
@@ -1046,15 +1576,55 @@ function renderCategories() {
             <div class="category-body">`;
 
         if (entryGroups.length === 0) {
-            html += `<div style="padding: 0.85rem 1rem; font-size: 0.84rem; color: var(--text-secondary);">No clinical items extracted for this category (${escapeHtml(catStatus.replace(/_/g, ' '))}).</div>`;
+            const missingDropdown = `<div class="subfield-dropdown-wrap">
+                <select class="subfield-select" onchange="handleSubfieldDropdownChange(this, ${cat.category_number}, '', [])">
+                    <option value="">Subfields Dropdown (0/${schemaFields.length} available, ${schemaFields.length} missing in text) &mdash; Select to add...</option>
+                    <optgroup label="&#9873; Flagged Missing / Not in Text (${schemaFields.length})">
+                        ${schemaFields.map(sf => `<option value="missing:${escapeHtml(sf)}">&#9873; ${escapeHtml(formatFieldName(sf))}: [Not available in text]</option>`).join('')}
+                    </optgroup>
+                </select>
+            </div>`;
+            const missingPills = schemaFields.map(sf =>
+                `<span class="missing-pill" onclick="openAddMissingSubfieldModal(${cat.category_number}, '${escapeHtml(sf)}', '')">&#9873; ${escapeHtml(formatFieldName(sf))}</span>`
+            ).join('');
+
+            html += `<table class="table-clean">
+                <thead>
+                    <tr>
+                        <th style="width: 32%;">Primary Clinical Item &amp; Source Evidence</th>
+                        <th style="width: 28%;">Subfields Dropdown (Available &amp; Missing)</th>
+                        <th style="width: 24%;">Missing Information Flag</th>
+                        <th style="width: 16%; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background: #fffafa;">
+                        <td>
+                            <div style="color: #991b1b; font-weight: 600; font-size: 0.84rem;">&#9873; Information Not Available in Uploaded/Pasted Text</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">No facts were extracted for <strong>${escapeHtml(catTitle)}</strong>. AI invention is disabled.</div>
+                        </td>
+                        <td>${missingDropdown}</td>
+                        <td>
+                            <div class="missing-flag-box">
+                                <div class="missing-flag-title">&#9873; All ${schemaFields.length} Expected Subfields Missing</div>
+                                <div class="missing-pills">${missingPills}</div>
+                            </div>
+                        </td>
+                        <td style="text-align: right;">
+                            <button type="button" class="btn-sm btn-secondary" onclick="openAddFactModal(${cat.category_number})">+ Add Fact</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>`;
         } else {
             html += `<table class="table-clean">
                 <thead>
                     <tr>
-                        <th style="width: 54%;">Clinical Item &amp; Source Evidence</th>
-                        <th style="width: 16%;">Context</th>
-                        <th style="width: 14%;">Review Status</th>
-                        <th style="width: 16%; text-align: right;">Actions</th>
+                        <th style="width: 26%;">Clinical Item &amp; Source Evidence</th>
+                        <th style="width: 25%;">Subfields Dropdown (Available &amp; Missing)</th>
+                        <th style="width: 19%;">Missing Information Flag</th>
+                        <th style="width: 12%;">Context &amp; Status</th>
+                        <th style="width: 18%; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>`;
@@ -1063,6 +1633,9 @@ function renderCategories() {
                 const primaryFact = pickPrimaryFact(group, cat.primary_fields);
                 const companionFacts = group.filter(f => f.id !== primaryFact.id);
                 const allFactIds = group.map(f => f.id);
+                const entryId = primaryFact.entry_id || primaryFact.id;
+                const sfInfo = buildSubfieldsAndMissingCell(cat.category_number, schemaFields, group, entryId);
+
                 const isAllRejected = group.every(f => f.review_status === 'rejected');
                 const isAllConfirmed = group.every(f => f.review_status === 'confirmed');
                 const isAnyCorrected = group.some(f => f.review_status === 'corrected');
@@ -1096,19 +1669,6 @@ function renderCategories() {
                 const primaryUnit = primaryFact.unit ? ` <span style="color: var(--text-secondary); font-weight: 500;">${escapeHtml(primaryFact.unit)}</span>` : '';
                 const showPrimaryLabel = companionFacts.length === 0 || !['diagnosis', 'instruction', 'problem', 'symptom'].includes(primaryFact.field_name);
 
-                let subfieldsHtml = '';
-                if (companionFacts.length > 0) {
-                    subfieldsHtml = `<div class="entry-subfields">`;
-                    for (const sf of companionFacts) {
-                        const sfUnit = sf.unit ? ` ${escapeHtml(sf.unit)}` : '';
-                        subfieldsHtml += `<span class="subfield-item" title="Click to edit ${escapeHtml(formatFieldName(sf.field_name))}" onclick="openEditEntryModal('${escapeHtml(sf.id)}', ${ JSON.stringify(allFactIds).replace(/"/g, '&quot;') })">
-                            <span class="subfield-key">${escapeHtml(formatFieldName(sf.field_name))}:</span>
-                            <span class="subfield-val">${escapeHtml(sf.value)}${sfUnit}</span>
-                        </span>`;
-                    }
-                    subfieldsHtml += `</div>`;
-                }
-
                 const timeFact = group.find(f => f.event_time);
                 const timeHtml = timeFact ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">Time: ${escapeHtml(timeFact.event_time)}</div>` : '';
 
@@ -1121,22 +1681,22 @@ function renderCategories() {
                             ${showPrimaryLabel ? `<span class="entry-primary-label">${escapeHtml(formatFieldName(primaryFact.field_name))}:</span>` : ''}
                             <span>${escapeHtml(primaryFact.value)}</span>${primaryUnit}
                         </div>
-                        ${subfieldsHtml}
                         ${evidenceHtml}
                     </td>
+                    <td>${sfInfo.dropdownHtml}</td>
+                    <td>${sfInfo.missingFlagHtml}</td>
                     <td>
+                        <div style="margin-bottom: 0.25rem;">${revBadge}</div>
                         ${renderContextBadges(primaryFact)}
                         ${timeHtml}
-                    </td>
-                    <td>
-                        ${revBadge}
                         ${primaryFact.origin === 'manual' ? '<div style="font-size:0.72rem; color:var(--text-secondary); margin-top:0.2rem;">Manual entry</div>' : ''}
                     </td>
                     <td>
                         <div class="cell-actions">
                             ${!isAcceptedState ? `<button type="button" class="btn-sm btn-success" onclick="quickReviewEntry(${encodedIds}, 'confirmed')">Confirm</button>` : ''}
                             <button type="button" class="btn-sm btn-secondary" onclick="openEditEntryModal('${escapeHtml(primaryFact.id)}', ${encodedIds})">Edit</button>
-                            ${!isAllRejected ? `<button type="button" class="btn-sm btn-danger" onclick="quickReviewEntry(${encodedIds}, 'rejected')">Reject</button>` : ''}
+                            ${!isAllRejected ? `<button type="button" class="btn-sm btn-warning" onclick="quickReviewEntry(${encodedIds}, 'rejected')">Reject</button>` : ''}
+                            <button type="button" class="btn-sm btn-danger" onclick="deleteFactEntry('${escapeHtml(primaryFact.id)}')" title="Delete this clinical entry">Delete</button>
                         </div>
                     </td>
                 </tr>`;
@@ -1148,15 +1708,15 @@ function renderCategories() {
         html += `</div></div>`;
     }
 
-    // Compact summary bar for empty categories when "Show Empty Categories" is unchecked
+    // Compact summary bar for empty categories when "Show Flagged Missing Categories" is unchecked
     if (!showEmpty && emptyCategories.length > 0) {
         html += `<div class="empty-cats-bar">
             <div class="empty-cats-title">
-                Not Documented / Empty Categories (${emptyCategories.length}) &mdash; Click any category to add a manual fact, or check "Show Empty Categories" above:
+                &#9873; Flagged Missing Categories Not in Uploaded/Pasted Text (${emptyCategories.length}) &mdash; Click any category to add a manual fact, or check "Show Flagged Missing Categories" above:
             </div>
             <div class="empty-cats-pills">
                 ${emptyCategories.map(c =>
-                    `<span class="empty-cat-pill" onclick="openAddFactModal(${c.category_number})">${c.category_number}. ${escapeHtml(c.display_name)}</span>`
+                    `<span class="empty-cat-pill" onclick="openAddFactModal(${c.category_number})">&#9873; ${c.category_number}. ${escapeHtml(c.display_name)}</span>`
                 ).join('')}
             </div>
         </div>`;
@@ -1171,6 +1731,28 @@ function populateCategoryDropdown() {
     select.innerHTML = profileData.categories.map(c =>
         `<option value="${c.category_number}">${c.category_number}. ${escapeHtml(c.display_name)}</option>`
     ).join('');
+    select.onchange = function() {
+        populateModalFieldDropdown(Number(this.value));
+    };
+    populateModalFieldDropdown(Number(select.value || 11));
+}
+
+function populateModalFieldDropdown(catNum, selectedField = '') {
+    const fieldSelect = document.getElementById('modal-field-select');
+    const fieldInput = document.getElementById('modal-field-name');
+    if (!fieldSelect || !profileData || !profileData.categories) return;
+    const cat = profileData.categories.find(c => Number(c.category_number) === Number(catNum));
+    const subfields = (cat && cat.subfields) || [];
+    let opts = subfields.map(sf =>
+        `<option value="${escapeHtml(sf)}" ${sf === selectedField ? 'selected' : ''}>${escapeHtml(formatFieldName(sf))} (${escapeHtml(sf)})</option>`
+    ).join('');
+    opts += `<option value="__custom__">-- Custom field name --</option>`;
+    fieldSelect.innerHTML = opts;
+    const chosen = selectedField || subfields[0] || '';
+    if (chosen) {
+        fieldSelect.value = subfields.includes(chosen) ? chosen : '__custom__';
+        fieldInput.value = chosen;
+    }
 }
 
 async function uploadFiles() {
@@ -1414,6 +1996,23 @@ async function quickReviewEntry(factIds, reviewStatus) {
     }
 }
 
+async function deleteFactEntry(factId) {
+    if (!confirm('Are you sure you want to permanently delete this entry?')) return;
+    try {
+        const response = await fetch(`/facts/${factId}?delete_entry=true`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Delete failed: ${data.error || data.detail}`);
+            return;
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Error deleting entry: ${error.message}`);
+    }
+}
+
 async function acceptAllFacts() {
     if (!profileData || !profileData.categories) return;
     const unreviewedIds = [];
@@ -1454,7 +2053,7 @@ async function acceptAllIcd() {
 
             const selectEl = document.getElementById(`icd-select-${item.fact_id}`);
             const candidateId = selectEl ? selectEl.value : (item.candidates && item.candidates[0] ? item.candidates[0].id : null);
-            if (!candidateId) continue;
+            if (!candidateId || candidateId === '__manual__') continue;
 
             await fetch(`/icd/decision/${item.fact_id}`, {
                 method: 'POST',
@@ -1478,11 +2077,13 @@ function openAddFactModal(defaultCatNum = 11) {
     currentModalEntryFacts = [];
     document.getElementById('fact-modal-title').textContent = 'Add Manual Clinical Fact';
     document.getElementById('modal-fact-id').value = '';
+    const entryEl = document.getElementById('modal-entry-id');
+    if (entryEl) entryEl.value = '';
     document.getElementById('modal-subfield-switcher-group').style.display = 'none';
     document.getElementById('modal-category-group').style.display = 'block';
     document.getElementById('modal-field-group').style.display = 'block';
     document.getElementById('modal-category-number').value = String(defaultCatNum);
-    document.getElementById('modal-field-name').value = Number(defaultCatNum) === 11 ? 'diagnosis' : '';
+    populateModalFieldDropdown(Number(defaultCatNum), Number(defaultCatNum) === 11 ? 'diagnosis' : '');
     document.getElementById('modal-value').value = '';
     document.getElementById('modal-unit').value = '';
     document.getElementById('modal-assertion').value = 'present';
@@ -1491,6 +2092,29 @@ function openAddFactModal(defaultCatNum = 11) {
     document.getElementById('modal-event-time').value = '';
     document.getElementById('modal-review-status').value = 'confirmed';
     document.getElementById('modal-reviewer-note').value = 'Added manually by reviewer';
+    document.getElementById('fact-modal').style.display = 'flex';
+}
+
+function openAddMissingSubfieldModal(catNum, fieldName, entryId = '') {
+    currentModalEntryFacts = [];
+    document.getElementById('fact-modal-title').textContent = `Enter Flagged Missing Subfield: ${formatFieldName(fieldName)}`;
+    document.getElementById('modal-fact-id').value = '';
+    const entryEl = document.getElementById('modal-entry-id');
+    if (entryEl) entryEl.value = entryId || '';
+    document.getElementById('modal-subfield-switcher-group').style.display = 'none';
+    document.getElementById('modal-category-group').style.display = 'block';
+    document.getElementById('modal-field-group').style.display = 'block';
+    document.getElementById('modal-category-number').value = String(catNum);
+    populateModalFieldDropdown(Number(catNum), fieldName);
+    document.getElementById('modal-field-name').value = fieldName;
+    document.getElementById('modal-value').value = '';
+    document.getElementById('modal-unit').value = '';
+    document.getElementById('modal-assertion').value = 'present';
+    document.getElementById('modal-temporality').value = 'current';
+    document.getElementById('modal-experiencer').value = 'patient';
+    document.getElementById('modal-event-time').value = '';
+    document.getElementById('modal-review-status').value = 'confirmed';
+    document.getElementById('modal-reviewer-note').value = 'Reviewer provided missing subfield not found in source text';
     document.getElementById('fact-modal').style.display = 'flex';
 }
 
@@ -1527,6 +2151,8 @@ function populateModalWithFact(fact) {
     if (!fact) return;
     document.getElementById('fact-modal-title').textContent = `Edit Field: ${formatFieldName(fact.field_name)}`;
     document.getElementById('modal-fact-id').value = fact.id;
+    const entryEl = document.getElementById('modal-entry-id');
+    if (entryEl) entryEl.value = fact.entry_id || '';
     document.getElementById('modal-category-group').style.display = 'none';
     document.getElementById('modal-field-group').style.display = 'none';
     document.getElementById('modal-field-name').value = fact.field_name;
@@ -1547,6 +2173,8 @@ function closeFactModal() {
 async function submitFactModal(event) {
     event.preventDefault();
     const factId = document.getElementById('modal-fact-id').value;
+    const entryEl = document.getElementById('modal-entry-id');
+    const entryId = entryEl ? (entryEl.value || null) : null;
 
     try {
         let response;
@@ -1576,6 +2204,7 @@ async function submitFactModal(event) {
                 temporality: document.getElementById('modal-temporality').value,
                 experiencer: document.getElementById('modal-experiencer').value,
                 event_time: document.getElementById('modal-event-time').value || null,
+                entry_id: entryId,
                 reviewer_note: document.getElementById('modal-reviewer-note').value || null
             };
             response = await fetch(`/facts/patient/${patientId}`, {
@@ -1596,12 +2225,178 @@ async function submitFactModal(event) {
     }
 }
 
+function handleIcdDropdownChange(factId, selectedValue) {
+    const btn = document.getElementById(`icd-accept-btn-${factId}`);
+    if (btn) btn.style.display = 'inline-flex';
+    const panel = document.getElementById(`icd-edit-panel-${factId}`);
+    if (selectedValue === '__manual__') {
+        if (panel) panel.style.display = 'table-row';
+        const codeInput = document.getElementById(`icd-manual-code-${factId}`);
+        if (codeInput) codeInput.focus();
+    }
+}
+
+function toggleIcdEditPanel(factId) {
+    const panel = document.getElementById(`icd-edit-panel-${factId}`);
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? 'table-row' : 'none';
+}
+
+async function saveIcdContext(factId, skipReload = false) {
+    const nameEl = document.getElementById(`icd-diag-name-${factId}`);
+    const ctxEl = document.getElementById(`icd-context-${factId}`);
+    const newName = nameEl ? nameEl.value.trim() : '';
+    const ctxVal = ctxEl ? ctxEl.value : 'present|current|patient';
+    const [assertion, temporality, experiencer] = ctxVal.split('|');
+
+    if (!newName) {
+        alert('Diagnosis name cannot be empty.');
+        return false;
+    }
+
+    try {
+        const response = await fetch(`/facts/${factId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                value: newName,
+                assertion: assertion || 'present',
+                temporality: temporality || 'current',
+                experiencer: experiencer || 'patient',
+                review_status: 'corrected',
+                reviewer_note: 'Updated diagnosis/context from ICD-11 section'
+            })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Context update failed: ${data.error || data.detail}`);
+            return false;
+        }
+        if (!skipReload) {
+            await loadPatientWorkspace();
+        }
+        return true;
+    } catch (error) {
+        alert(`Context update error: ${error.message}`);
+        return false;
+    }
+}
+
+async function saveManualIcd(factId) {
+    const codeEl = document.getElementById(`icd-manual-code-${factId}`);
+    const titleEl = document.getElementById(`icd-manual-title-${factId}`);
+    const manualCode = codeEl ? codeEl.value.trim() : '';
+    const manualTitle = titleEl ? titleEl.value.trim() : '';
+
+    if (!manualCode) {
+        alert('Please enter an ICD-11 code (e.g., BA00.Z).');
+        return;
+    }
+
+    try {
+        // Also save any changes made to Diagnosis Name or Context in the edit panel
+        await saveIcdContext(factId, true);
+
+        const response = await fetch(`/icd/decision/${factId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mapping_status: 'accepted',
+                manual_code: manualCode,
+                manual_title: manualTitle || null,
+                reviewer_note: 'Manual ICD-11 code entry by reviewer'
+            })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Manual ICD save failed: ${data.error || data.detail}`);
+            return;
+        }
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Manual ICD save error: ${error.message}`);
+    }
+}
+
+function toggleNewDiagnosisPanel(forceShow) {
+    const panel = document.getElementById('new-diagnosis-panel');
+    if (!panel) return;
+    if (typeof forceShow === 'boolean') {
+        panel.style.display = forceShow ? 'block' : 'none';
+    } else {
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+    if (panel.style.display === 'block') {
+        const nameInput = document.getElementById('new-diag-name');
+        if (nameInput) nameInput.focus();
+    }
+}
+
+async function submitNewDiagnosisRecord() {
+    const diagName = (document.getElementById('new-diag-name').value || '').trim();
+    if (!diagName) {
+        alert('Please enter a Diagnosis Name.');
+        return;
+    }
+    const ctxVal = document.getElementById('new-diag-context').value || 'present|current|patient';
+    const [assertion, temporality, experiencer] = ctxVal.split('|');
+    const manualCode = (document.getElementById('new-diag-icd-code').value || '').trim();
+    const manualTitle = (document.getElementById('new-diag-icd-title').value || '').trim();
+
+    const btn = document.getElementById('save-new-diag-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+    }
+
+    try {
+        const response = await fetch(`/facts/patient/${patientId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                category_number: 11,
+                field_name: 'diagnosis',
+                value: diagName,
+                assertion: assertion || 'present',
+                temporality: temporality || 'current',
+                experiencer: experiencer || 'patient',
+                manual_icd_code: manualCode || null,
+                manual_icd_title: manualTitle || null,
+                auto_icd_lookup: !manualCode,
+                reviewer_note: 'Manual diagnosis record added in ICD-11 section'
+            })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Failed to add diagnosis: ${data.error || data.detail}`);
+            return;
+        }
+        document.getElementById('new-diag-name').value = '';
+        document.getElementById('new-diag-icd-code').value = '';
+        document.getElementById('new-diag-icd-title').value = '';
+        toggleNewDiagnosisPanel(false);
+        await loadPatientWorkspace();
+    } catch (error) {
+        alert(`Error adding diagnosis: ${error.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Save Diagnosis Record';
+        }
+    }
+}
+
 async function submitIcdDecision(factId, mappingStatus) {
     const selectEl = document.getElementById(`icd-select-${factId}`);
     const candidateId = selectEl ? selectEl.value : null;
 
+    if (mappingStatus === 'accepted' && candidateId === '__manual__') {
+        await saveManualIcd(factId);
+        return;
+    }
+
     if (mappingStatus === 'accepted' && !candidateId) {
-        alert('Please select a valid WHO ICD-11 candidate code before accepting.');
+        alert('Please select a WHO ICD-11 candidate code from the dropdown, or click Edit to enter a manual code.');
         return;
     }
 
@@ -1611,7 +2406,7 @@ async function submitIcdDecision(factId, mappingStatus) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 mapping_status: mappingStatus,
-                candidate_id: candidateId || null,
+                candidate_id: (candidateId && candidateId !== '__manual__') ? candidateId : null,
                 reviewer_note: `Reviewer marked ICD mapping as ${mappingStatus}`
             })
         });
@@ -1651,6 +2446,36 @@ function downloadFactsCsv() {
     const incRej = document.getElementById('export-rejected').checked;
     const url = `/export/facts/${patientId}?include_unaccepted_icd=${incIcd}&include_not_documented=${incNotDoc}&include_rejected=${incRej}`;
     window.location.href = url;
+}
+
+async function savePatientProfile() {
+    const btns = document.querySelectorAll('.save-profile-btn');
+    btns.forEach(b => {
+        b.disabled = true;
+        b.textContent = 'Saving Profile...';
+    });
+
+    try {
+        const response = await fetch(`/profile/${patientId}/save`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(`Failed to save profile: ${data.error || data.detail}`);
+            btns.forEach(b => {
+                b.disabled = false;
+                b.textContent = 'Save Profile';
+            });
+            return;
+        }
+        window.location.href = data.redirect_url || '/patients';
+    } catch (error) {
+        alert(`Error saving profile: ${error.message}`);
+        btns.forEach(b => {
+            b.disabled = false;
+            b.textContent = 'Save Profile';
+        });
+    }
 }
 
 // Initial workspace load

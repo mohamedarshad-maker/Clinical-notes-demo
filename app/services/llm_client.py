@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, Optional, Type
 from pydantic import BaseModel, ValidationError
 import google.generativeai as genai
 from groq import AsyncGroq
+import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,14 @@ class LLMClient:
                     )
 
                 try:
-                    if self.provider == "gemini":
+                    if self.provider in ("claude", "anthropic"):
+                        result = await self._call_claude(
+                            system_prompt,
+                            effective_user_prompt,
+                            response_schema,
+                            timeout
+                        )
+                    elif self.provider == "gemini":
                         result = await self._call_gemini(
                             system_prompt,
                             effective_user_prompt,
@@ -161,6 +169,88 @@ class LLMClient:
                     await asyncio.sleep(min(2 ** attempt, 4))
 
             raise LLMError("Maximum retries exceeded")
+
+    async def _call_claude(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        response_schema: Type[BaseModel],
+        timeout: int
+    ) -> Dict[str, Any]:
+        """Call Anthropic Claude (Haiku 4.5) with structured JSON output."""
+        api_key = settings.effective_claude_key
+        if not api_key:
+            raise LLMError("ANTHROPIC_API_KEY is not configured in .env.")
+
+        schema = response_schema.model_json_schema()
+        full_user_prompt = (
+            f"{user_prompt}\n\n"
+            f"Return ONLY valid JSON matching this exact JSON schema (no markdown fences, no commentary):\n"
+            f"{json.dumps(schema)}"
+        )
+
+        # Try configured model name first, then standard Haiku 4.5 / 3.5 model IDs
+        candidate_models = []
+        for m in [self.model, "claude-haiku-4-5-20251001", "claude-haiku-4-5", "claude-3-5-haiku-latest"]:
+            if m and m not in candidate_models:
+                candidate_models.append(m)
+
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+        last_err: Optional[Exception] = None
+        async with httpx.AsyncClient(timeout=min(timeout, 60)) as client:
+            for model_name in candidate_models:
+                try:
+                    payload = {
+                        "model": model_name,
+                        "max_tokens": 8192,
+                        "temperature": 0.1,
+                        "system": system_prompt,
+                        "messages": [
+                            {"role": "user", "content": full_user_prompt}
+                        ],
+                    }
+                    resp = await client.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers=headers,
+                        json=payload,
+                    )
+                    if resp.status_code in (404, 400) and "model" in resp.text.lower():
+                        last_err = LLMError(f"Claude model '{model_name}' unavailable: {resp.text[:200]}")
+                        continue
+                    if resp.status_code != 200:
+                        raise LLMError(f"Claude API HTTP {resp.status_code}: {resp.text[:300]}")
+
+                    data = resp.json()
+                    if data.get("stop_reason") == "max_tokens":
+                        raise LLMError("Claude output was truncated (stop_reason=max_tokens)")
+
+                    content_blocks = data.get("content") or []
+                    text_parts = [
+                        b.get("text", "")
+                        for b in content_blocks
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    ]
+                    text = self._clean_json_text("".join(text_parts))
+                    if not text:
+                        raise LLMError("Empty response from Claude")
+                    return json.loads(text)
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse Claude JSON response ({model_name}): {e}")
+                    raise LLMError(f"Invalid JSON response from Claude: {e}")
+                except Exception as e:
+                    last_err = e
+                    if settings.gemini_api_key and ("401" in str(e) or "403" in str(e) or "429" in str(e)):
+                        logger.warning(f"Claude API call failed ({e}); falling back to configured Gemini key...")
+                        return await self._call_gemini(system_prompt, user_prompt, response_schema, timeout)
+                    raise LLMError(f"Claude error: {e}")
+
+        raise LLMError(f"Claude error: {last_err}")
 
     async def _call_gemini(
         self,

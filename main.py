@@ -123,9 +123,11 @@ async def health_check():
         "llm_model": settings.llm_model,
         "llm_configured": settings.is_llm_configured,
         "who_icd_configured": settings.is_who_icd_configured,
-        "storage_configured": settings.is_storage_configured,
-        "tesseract_configured": settings.is_tesseract_configured,
-        "ocr_configured": settings.is_tesseract_configured
+        "storage_configured": settings.is_any_storage_configured,
+        "storage_provider": settings.storage_provider,
+        "ocr_configured": settings.is_ocr_configured,
+        "ocr_provider": settings.ocr_provider,
+        "tesseract_configured": settings.is_tesseract_configured
     }
 
 

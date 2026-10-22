@@ -1,4 +1,5 @@
 """Application configuration."""
+import importlib.util
 import shutil
 from pathlib import Path
 from typing import Literal, Optional
@@ -26,8 +27,10 @@ class Settings(BaseSettings):
     supabase_storage_bucket: str = "clinical-notes-private"
 
     # LLM Provider
-    llm_provider: Literal["gemini", "groq"] = "gemini"
-    llm_model: str = "gemini-1.5-flash"
+    llm_provider: Literal["gemini", "groq", "claude", "anthropic"] = "claude"
+    llm_model: str = "claude-haiku-4-5"
+    anthropic_api_key: Optional[str] = None
+    claude_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     llm_max_concurrent_requests: int = 3
@@ -105,10 +108,24 @@ class Settings(BaseSettings):
         return url not in placeholders and key not in placeholders
 
     @property
+    def effective_claude_key(self) -> str:
+        """Return configured Anthropic / Claude API key."""
+        return (self.anthropic_api_key or self.claude_api_key or "").strip()
+
+    @property
     def is_llm_configured(self) -> bool:
         """Check whether the selected LLM provider has an API key configured."""
-        placeholders = {"", "your-gemini-api-key",
-                        "your-groq-api-key", "placeholder"}
+        placeholders = {
+            "",
+            "your-gemini-api-key",
+            "your-groq-api-key",
+            "your-claude-api-key-here",
+            "your-anthropic-api-key",
+            "placeholder",
+        }
+        if self.llm_provider in ("claude", "anthropic"):
+            key = self.effective_claude_key
+            return bool(key and key not in placeholders)
         if self.llm_provider == "gemini":
             key = (self.gemini_api_key or "").strip()
             return bool(key and key not in placeholders)
@@ -141,6 +158,42 @@ class Settings(BaseSettings):
             return True
         common_win = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
         return common_win.is_file()
+
+    @property
+    def is_rapidocr_configured(self) -> bool:
+        """Check whether RapidOCR (PaddleOCR ONNX) is installed and available."""
+        return importlib.util.find_spec("rapidocr_onnxruntime") is not None
+
+    @property
+    def is_ocr_configured(self) -> bool:
+        """Check whether any OCR engine (Tesseract, RapidOCR, or LLM Vision OCR) is active."""
+        return self.is_tesseract_configured or self.is_rapidocr_configured or self.is_llm_configured
+
+    @property
+    def ocr_provider(self) -> str:
+        """Return active OCR provider description."""
+        providers = []
+        if self.is_rapidocr_configured:
+            providers.append("rapidocr")
+        if self.is_llm_configured:
+            providers.append(f"{self.llm_provider}_vision")
+        if self.is_tesseract_configured:
+            providers.append("tesseract")
+        return "+".join(providers) if providers else "none"
+
+    @property
+    def is_any_storage_configured(self) -> bool:
+        """Check whether Supabase Storage or local development storage is active."""
+        return self.is_storage_configured or self.app_env != "production"
+
+    @property
+    def storage_provider(self) -> str:
+        """Return active storage backend name."""
+        if self.is_storage_configured:
+            return "supabase"
+        if self.app_env != "production":
+            return "local"
+        return "none"
 
     @property
     def resolved_tesseract_cmd(self) -> Optional[str]:

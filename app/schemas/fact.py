@@ -63,3 +63,6 @@ class FactCreate(BaseModel):
     block_id: Optional[str] = None
     quote: Optional[str] = None
     reviewer_note: Optional[str] = None
+    manual_icd_code: Optional[str] = None
+    manual_icd_title: Optional[str] = None
+    auto_icd_lookup: Optional[bool] = True

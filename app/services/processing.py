@@ -581,7 +581,7 @@ class ProcessingService:
             key = (
                 primary_val,
                 str(entry.get("assertion") or "present").lower(),
-                str(entry.get("temporality") or "current").lower(),
+                "" if cat_num == 11 else str(entry.get("temporality") or "current").lower(),
                 str(entry.get("experiencer") or "patient").lower(),
             )
             if key not in seen_map:
@@ -591,6 +591,8 @@ class ProcessingService:
                 deduped.append(copy_entry)
             else:
                 target = seen_map[key]
+                if cat_num == 11 and str(entry.get("temporality") or "current").lower() == "current":
+                    target["temporality"] = "current"
                 for k, v in entry.items():
                     if k == "evidence":
                         for ev in (v or []):

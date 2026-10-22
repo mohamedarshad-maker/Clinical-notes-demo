@@ -4,7 +4,7 @@ from typing import Optional
 import uuid
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
@@ -30,6 +30,8 @@ class ICDDecisionUpdate(BaseModel):
 
     mapping_status: str  # accepted, rejected, unresolved, suggested
     candidate_id: Optional[str] = None
+    manual_code: Optional[str] = None
+    manual_title: Optional[str] = None
     reviewer_note: Optional[str] = None
 
 
@@ -185,6 +187,35 @@ async def get_patient_profile_data(
         if f.category_number in facts_by_cat:
             facts_by_cat[f.category_number].append(f)
 
+    # Deduplicate Category 11 (Diagnosis) entries that share the same normalized diagnosis name,
+    # assertion, and experiencer (e.g., chronic conditions extracted as both 'historical' and 'current')
+    if facts_by_cat.get(11):
+        cat11_by_entry: dict[str, list[ConsolidatedFact]] = {}
+        for f in facts_by_cat[11]:
+            cat11_by_entry.setdefault(f.entry_id, []).append(f)
+        chosen_entry_by_sig: dict[tuple[str, str, str], tuple[tuple[int, int, int], str]] = {}
+        non_diag_entries: list[str] = []
+        for eid, efacts in cat11_by_entry.items():
+            df = next((x for x in efacts if x.field_name == "diagnosis" and x.availability == "documented"), None)
+            if not df or not df.value:
+                non_diag_entries.append(eid)
+                continue
+            norm_diag = " ".join(df.value.strip().lower().split())
+            sig = (
+                norm_diag,
+                (df.assertion or "present").lower(),
+                (df.experiencer or "patient").lower(),
+            )
+            score = (
+                1 if df.origin in ("reviewer_addition", "reviewer_correction") else 0,
+                1 if (df.temporality or "current").lower() == "current" else 0,
+                1 if df.review_status in ("confirmed", "corrected") else 0,
+            )
+            if sig not in chosen_entry_by_sig or score > chosen_entry_by_sig[sig][0]:
+                chosen_entry_by_sig[sig] = (score, eid)
+        kept_eids = {eid for _, eid in chosen_entry_by_sig.values()} | set(non_diag_entries)
+        facts_by_cat[11] = [f for f in facts_by_cat[11] if f.entry_id in kept_eids]
+
     categories_payload = []
     for cat_num in sorted(CATEGORY_DEFINITIONS.keys()):
         defn = CATEGORY_DEFINITIONS[cat_num]
@@ -273,6 +304,10 @@ async def get_patient_profile_data(
                 .order_by(ICDCandidate.search_rank.asc())
                 .all()
             )
+        if primary_decision and primary_decision.candidate:
+            existing_ids = {c.id for c in candidates}
+            if primary_decision.candidate.id not in existing_ids:
+                candidates = [primary_decision.candidate] + list(candidates)
 
         is_eligible = (
             df.review_status != "rejected"
@@ -282,6 +317,7 @@ async def get_patient_profile_data(
 
         icd_mappings.append({
             "fact_id": str(df.id),
+            "entry_id": df.entry_id,
             "diagnosis": df.value,
             "assertion": df.assertion or "present",
             "temporality": df.temporality or "current",
@@ -538,6 +574,89 @@ async def add_manual_fact(
     )
     db.add(revision)
 
+    # If adding a diagnosis in Category 11, handle manual ICD-11 code or auto WHO lookup
+    if fact.category_number == 11 and fact.field_name == "diagnosis":
+        norm_query = who_icd_service.sanitize_diagnosis_query(fact.value or "").lower() or "manual"
+        if payload.manual_icd_code and payload.manual_icd_code.strip():
+            m_code = payload.manual_icd_code.strip()
+            m_title = (payload.manual_icd_title or fact.value or "Manual ICD-11 Entry").strip()
+            cand = db.query(ICDCandidate).filter(
+                ICDCandidate.mms_code == m_code,
+                ICDCandidate.normalized_query == norm_query
+            ).first()
+            if not cand:
+                cand = ICDCandidate(
+                    id=uuid.uuid4(),
+                    diagnosis_text=fact.value,
+                    normalized_query=norm_query,
+                    mms_code=m_code,
+                    mms_title=m_title,
+                    icd_release=settings.who_icd_release,
+                    icd_language=settings.who_icd_language,
+                    search_rank=0
+                )
+                db.add(cand)
+                db.flush()
+            else:
+                cand.mms_title = m_title
+            dec = ICDDecision(
+                id=uuid.uuid4(),
+                fact_id=fact.id,
+                candidate_id=cand.id,
+                mapping_status="accepted",
+                needs_review=False,
+                reviewer_note="Manual diagnosis and ICD-11 entry",
+                icd_release=settings.who_icd_release,
+                icd_language=settings.who_icd_language,
+                decided_at=datetime.utcnow()
+            )
+            db.add(dec)
+        elif (
+            payload.auto_icd_lookup
+            and (fact.assertion or "present") != "negated"
+            and (fact.experiencer or "patient") == "patient"
+            and who_icd_service.is_configured()
+        ):
+            try:
+                candidates_list = await who_icd_service.search_diagnosis(fact.value, max_results=5)
+                saved_candidates = []
+                for cand_data in candidates_list:
+                    cand = db.query(ICDCandidate).filter(
+                        ICDCandidate.mms_code == cand_data["mms_code"],
+                        ICDCandidate.normalized_query == norm_query,
+                        ICDCandidate.icd_release == settings.who_icd_release
+                    ).first()
+                    if not cand:
+                        cand = ICDCandidate(
+                            id=uuid.uuid4(),
+                            diagnosis_text=fact.value,
+                            normalized_query=norm_query,
+                            mms_code=cand_data["mms_code"],
+                            mms_title=cand_data["mms_title"],
+                            mms_description=cand_data.get("mms_description"),
+                            foundation_uri=cand_data.get("foundation_uri"),
+                            who_source_link=cand_data.get("who_source_link"),
+                            icd_release=settings.who_icd_release,
+                            icd_language=settings.who_icd_language,
+                            search_rank=cand_data["search_rank"]
+                        )
+                        db.add(cand)
+                        db.flush()
+                    saved_candidates.append(cand)
+                dec = ICDDecision(
+                    id=uuid.uuid4(),
+                    fact_id=fact.id,
+                    candidate_id=saved_candidates[0].id if saved_candidates else None,
+                    mapping_status="suggested" if saved_candidates else "unresolved",
+                    needs_review=False,
+                    icd_release=settings.who_icd_release,
+                    icd_language=settings.who_icd_language,
+                    suggested_at=datetime.utcnow()
+                )
+                db.add(dec)
+            except Exception as e:
+                logger.warning(f"Auto WHO ICD lookup failed for manual diagnosis '{fact.value}': {e}")
+
     # Mark summaries stale
     db.query(PatientSummary).filter(
         PatientSummary.patient_id == patient_uuid
@@ -549,6 +668,53 @@ async def add_manual_fact(
     return JSONResponse({
         "success": True,
         "fact": _serialize_fact(fact, {})
+    })
+
+
+@router.delete("/facts/{fact_id}")
+async def delete_fact(
+    fact_id: str,
+    delete_entry: bool = Query(True, description="Delete all subfield facts in the same entry group"),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a clinical fact (or its entire entry group) and any associated ICD decisions."""
+    try:
+        fact_uuid = uuid.UUID(fact_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid fact ID format")
+
+    fact = db.query(ConsolidatedFact).filter(
+        ConsolidatedFact.id == fact_uuid).first()
+    if not fact:
+        raise HTTPException(404, "Fact not found")
+
+    patient_id = fact.patient_id
+    if delete_entry and fact.entry_id:
+        target_facts = db.query(ConsolidatedFact).filter(
+            ConsolidatedFact.patient_id == patient_id,
+            ConsolidatedFact.entry_id == fact.entry_id
+        ).all()
+    else:
+        target_facts = [fact]
+
+    target_ids = [f.id for f in target_facts]
+
+    # Delete associated ICD decisions and review revisions
+    db.query(ICDDecision).filter(ICDDecision.fact_id.in_(target_ids)).delete(synchronize_session=False)
+    db.query(ReviewRevision).filter(ReviewRevision.fact_id.in_(target_ids)).delete(synchronize_session=False)
+    for tf in target_facts:
+        db.delete(tf)
+
+    # Mark patient summaries stale
+    db.query(PatientSummary).filter(
+        PatientSummary.patient_id == patient_id
+    ).update({"is_stale": True})
+
+    db.commit()
+
+    return JSONResponse({
+        "success": True,
+        "deleted_count": len(target_ids)
     })
 
 
@@ -573,7 +739,31 @@ async def save_icd_decision(
         raise HTTPException(400, "Invalid mapping_status")
 
     candidate_uuid = None
-    if payload.candidate_id:
+    if payload.manual_code and payload.manual_code.strip():
+        m_code = payload.manual_code.strip()
+        m_title = (payload.manual_title or fact.value or "Manual ICD-11 Entry").strip()
+        norm_query = who_icd_service.sanitize_diagnosis_query(fact.value or "").lower() or "manual"
+        cand = db.query(ICDCandidate).filter(
+            ICDCandidate.mms_code == m_code,
+            ICDCandidate.normalized_query == norm_query
+        ).first()
+        if not cand:
+            cand = ICDCandidate(
+                id=uuid.uuid4(),
+                diagnosis_text=fact.value or m_title,
+                normalized_query=norm_query,
+                mms_code=m_code,
+                mms_title=m_title,
+                icd_release=settings.who_icd_release,
+                icd_language=settings.who_icd_language,
+                search_rank=0
+            )
+            db.add(cand)
+            db.flush()
+        else:
+            cand.mms_title = m_title
+        candidate_uuid = cand.id
+    elif payload.candidate_id:
         try:
             candidate_uuid = uuid.UUID(payload.candidate_id)
         except ValueError:
@@ -730,3 +920,28 @@ async def lookup_icd_for_fact(
             "success": False,
             "error": str(e)
         }, status_code=502)
+
+
+@router.post("/profile/{patient_id}/save")
+async def save_patient_profile(
+    patient_id: str,
+    db: Session = Depends(get_db)
+):
+    """Save and finalize the patient clinical profile and return redirect to patient list."""
+    try:
+        patient_uuid = uuid.UUID(patient_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid patient ID format")
+
+    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
+    if not patient:
+        raise HTTPException(404, "Patient not found")
+
+    patient.updated_at = datetime.utcnow()
+    db.commit()
+
+    return JSONResponse({
+        "success": True,
+        "patient_id": str(patient.id),
+        "redirect_url": "/patients"
+    })
