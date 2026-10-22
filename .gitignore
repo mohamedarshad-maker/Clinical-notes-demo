@@ -45,6 +45,7 @@ htmlcov/
 
 # Alembic
 alembic/versions/*.pyc
+aci-bench-main/
 
 # Temporary files
 tmp/

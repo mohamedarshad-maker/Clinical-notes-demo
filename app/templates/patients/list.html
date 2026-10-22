@@ -32,9 +32,22 @@
 
 <div class="patients-table-container">
     {% if patients %}
+    <div class="patients-toolbar">
+        <div class="search-box-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="patient-search-input" class="patient-search-input"
+                placeholder="Search patients by No., Name, Specialty, ID, or Status..."
+                oninput="filterPatients()" autocomplete="off">
+            <button type="button" id="clear-search-btn" class="clear-search-btn" onclick="clearPatientSearch()" style="display: none;" title="Clear search">✕</button>
+        </div>
+        <div class="patient-count-badge" id="patient-count-badge">
+            Showing <strong>{{ patients|length }}</strong> of <strong>{{ patients|length }}</strong> patients
+        </div>
+    </div>
     <table class="patients-table">
         <thead>
             <tr>
+                <th style="width: 60px; text-align: center;">No.</th>
                 <th>Patient</th>
                 <th>Created</th>
                 <th>Documents</th>
@@ -42,9 +55,12 @@
                 <th style="text-align: right;">Actions</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="patients-tbody">
             {% for patient in patients %}
-            <tr class="patient-row" onclick="openPatientWorkspace('{{ patient.id }}')">
+            <tr class="patient-row" data-search-text="{{ loop.index }} {{ patient.display_name|lower }} {{ patient.id|lower }} {{ patient.documents|length }} file(s) {% if patient.documents|length > 0 %}ready{% else %}no documents{% endif %}" onclick="openPatientWorkspace('{{ patient.id }}')">
+                <td class="patient-no-cell">
+                    <span class="patient-row-num">{{ loop.index }}</span>
+                </td>
                 <td>
                     <div class="patient-name-cell">
                         <div class="patient-avatar">{{ patient.display_name[0].upper() }}</div>
@@ -77,6 +93,12 @@
                 </td>
             </tr>
             {% endfor %}
+            <tr id="no-search-results-row" style="display: none;">
+                <td colspan="6" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary);">
+                    <div style="font-weight: 600; color: var(--navy); margin-bottom: 0.25rem;">No matching patients found</div>
+                    <div style="font-size: 0.85rem;">Try searching for a different patient name, specialty, or ID.</div>
+                </td>
+            </tr>
         </tbody>
     </table>
     {% else %}
@@ -173,11 +195,144 @@
         padding: 3rem 2rem;
         color: var(--text-secondary);
     }
+
+    .patients-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.9rem 1.25rem;
+        background: #ffffff;
+        border-bottom: 1px solid var(--border);
+        flex-wrap: wrap;
+    }
+
+    .search-box-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 260px;
+        max-width: 480px;
+        display: flex;
+        align-items: center;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 0.75rem;
+        font-size: 0.88rem;
+        color: var(--text-secondary);
+        pointer-events: none;
+    }
+
+    .patient-search-input {
+        width: 100%;
+        padding: 0.5rem 2rem 0.5rem 2.25rem !important;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 0.88rem;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .patient-search-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.12);
+    }
+
+    .clear-search-btn {
+        position: absolute;
+        right: 0.4rem;
+        background: transparent;
+        color: var(--text-secondary);
+        border: none;
+        padding: 0.2rem 0.45rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+
+    .clear-search-btn:hover {
+        background: #f1f5f9;
+        color: var(--navy);
+    }
+
+    .patient-count-badge {
+        font-size: 0.84rem;
+        color: var(--text-secondary);
+        background: #f8fafc;
+        padding: 0.35rem 0.75rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+    }
+
+    .patient-no-cell {
+        text-align: center;
+        width: 60px;
+    }
+
+    .patient-row-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 26px;
+        height: 26px;
+        padding: 0 0.4rem;
+        border-radius: 6px;
+        background: #f1f5f9;
+        color: var(--navy);
+        font-weight: 600;
+        font-size: 0.82rem;
+    }
 </style>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    function filterPatients() {
+        const input = document.getElementById('patient-search-input');
+        const clearBtn = document.getElementById('clear-search-btn');
+        const countBadge = document.getElementById('patient-count-badge');
+        const noResultsRow = document.getElementById('no-search-results-row');
+        if (!input) return;
+
+        const query = input.value.trim().toLowerCase();
+        if (clearBtn) {
+            clearBtn.style.display = query.length > 0 ? 'inline-block' : 'none';
+        }
+
+        const rows = document.querySelectorAll('#patients-tbody tr.patient-row');
+        const totalCount = rows.length;
+        let visibleCount = 0;
+
+        rows.forEach((row) => {
+            const searchText = (row.getAttribute('data-search-text') || row.innerText || '').toLowerCase();
+            if (!query || searchText.includes(query)) {
+                row.style.display = '';
+                visibleCount++;
+                const numSpan = row.querySelector('.patient-row-num');
+                if (numSpan) numSpan.textContent = visibleCount;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        if (countBadge) {
+            countBadge.innerHTML = `Showing <strong>${visibleCount}</strong> of <strong>${totalCount}</strong> patients`;
+        }
+        if (noResultsRow) {
+            noResultsRow.style.display = (visibleCount === 0 && totalCount > 0) ? '' : 'none';
+        }
+    }
+
+    function clearPatientSearch() {
+        const input = document.getElementById('patient-search-input');
+        if (input) {
+            input.value = '';
+            filterPatients();
+            input.focus();
+        }
+    }
+
     function showCreateForm() {
         document.getElementById('create-form').style.display = 'block';
         document.getElementById('display_name').focus();
