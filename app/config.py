@@ -105,7 +105,12 @@ class Settings(BaseSettings):
             "placeholder-key",
             "your-service-role-key",
         }
-        return url not in placeholders and key not in placeholders
+        if url in placeholders or key in placeholders:
+            return False
+        # Guard against accidentally pasting the 20-char Project ID instead of the secret/service_role key
+        if not (key.startswith("eyJ") or key.startswith("sb_secret_") or len(key) >= 32):
+            return False
+        return True
 
     @property
     def effective_claude_key(self) -> str:
